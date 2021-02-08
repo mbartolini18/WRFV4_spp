@@ -47,7 +47,7 @@
       USE module_wrf_error
       USE module_mp_radar
 #if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
-      USE module_dm, ONLY : wrf_dm_max_real
+      USE module_dm, ONLY : wrf_dm_max_real, wrf_dm_min_real
 #endif
       USE module_model_constants, only : RE_QC_BG, RE_QI_BG, RE_QS_BG
 
@@ -986,6 +986,8 @@
                               refl_10cm, diagflag, ke_diag, do_radar_ref,      &
                               re_cloud, re_ice, re_snow,              &
                               has_reqc, has_reqi, has_reqs,           &
+                              rand_perturb_on,                        &
+                              kme_stoch, rand_pert, grid_id,          &
                               ids,ide, jds,jde, kds,kde, &             ! domain dims
                               ims,ime, jms,jme, kms,kme, &             ! memory dims
                               its,ite, jts,jte, kts,kte)               ! tile dims
@@ -995,7 +997,7 @@
 !..Subroutine arguments
       INTEGER, INTENT(IN):: ids,ide, jds,jde, kds,kde, &
                             ims,ime, jms,jme, kms,kme, &
-                            its,ite, jts,jte, kts,kte
+                            its,ite, jts,jte, kts,kte, grid_id
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
                           qv, qc, qr, qi, qs, qg, ni, nr, th
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), OPTIONAL, INTENT(INOUT):: &
@@ -1019,6 +1021,10 @@
       REAL, INTENT(IN):: dt_in
       INTEGER, INTENT(IN):: itimestep
 
+      INTEGER, INTENT(IN) :: rand_perturb_on, kme_stoch
+      REAL, DIMENSION(ims:ime,kms:kme_stoch,jms:jme), INTENT(IN):: &
+                          rand_pert
+
 !..Local variables
       REAL, DIMENSION(kts:kte):: &
                           qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, ni1d,     &
@@ -1033,7 +1039,8 @@
       REAL:: dt, pptrain, pptsnow, pptgraul, pptice
       REAL:: qc_max, qr_max, qs_max, qi_max, qg_max, ni_max, nr_max
       REAL:: nwfa1
-      INTEGER:: i, j, k
+      INTEGER:: i, j, k, m
+      REAL:: rand1, rand2, rand3, rand4, min_rand
       INTEGER:: imax_qc,imax_qr,imax_qi,imax_qs,imax_qg,imax_ni,imax_nr
       INTEGER:: jmax_qc,jmax_qr,jmax_qi,jmax_qs,jmax_qg,jmax_ni,jmax_nr
       INTEGER:: kmax_qc,kmax_qr,kmax_qi,kmax_qs,kmax_qg,kmax_ni,kmax_nr
@@ -1050,6 +1057,20 @@
       j_start = jts
       i_end   = MIN(ite, ide-1)
       j_end   = MIN(jte, jde-1)
+
+      if (rand_perturb_on .ne. 0 .and. grid_id .eq. 1) then
+#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
+         min_rand = wrf_dm_min_real ( MINVAL(rand_pert(i_start:i_end,1,j_start:j_end)) )
+#else
+         min_rand = MINVAL ( rand_pert(i_start:i_end,1,j_start:j_end) )
+#endif
+         if (ABS(min_rand) .le. 1.E-12 .AND. rand_perturb_on .ne. 0) then
+            CALL wrf_error_fatal( "FATAL: apparently the random perturbation field is all zero")
+         else
+            write(mp_debug,'(a,1x,f15.10)') 'DEBUG-GT, min_rand is: ', min_rand
+            CALL wrf_debug(150, mp_debug)
+         endif
+      endif
 
 !..For idealized testing by developer.
 !     if ( (ide-ids+1).gt.4 .and. (jde-jds+1).lt.4 .and.                &
@@ -1103,6 +1124,47 @@
       j_loop:  do j = j_start, j_end
       i_loop:  do i = i_start, i_end
 
+      ! stoch goes here
+!+---+-----------------------------------------------------------------+
+!..Introduce stochastic parameter perturbations by creating as many
+!  scalar rand1, rand2, ...
+!.. variables as needed to perturb different pieces of microphysics.
+!  gthompsn  21Mar2018
+! Setting spp_mp to 1 gives graupel Y-intercept pertubations (2^0)
+!                   2 gives cloud water distribution gamma shape
+!                   parameter perturbations (2^1)
+!                   4 gives CCN and IN activation perturbations (2^2)
+!                   8 gives TBD (2^3)
+!                   3 gives both 1+2
+!                   5 gives both 1+4
+!                   9 gives both 1+8
+!                   6 gives both 2+4
+!                  10 gives both 2+8
+!                  12 gives both 4+8
+!                   7 gives 1+2+4
+!                  11 gives 1+2+8
+!                  13 gives 1+4+8
+!                  14 gives 2+4+8
+!                  15 gives all 1+2+4+8
+! For now (10May2019), standard deviation should be only 0.5 and cut-off
+! at 2.0 (4.0*stddev) in order to constrain the various perturbations 
+! from being too extreme.
+!+---+-----------------------------------------------------------------+
+         rand1 = 0.0
+         rand2 = 0.0
+         rand3 = 0.0
+         rand4 = 0.0
+         if (rand_perturb_on .ne. 0) then
+            if (MOD(rand_perturb_on,2) .ne. 0) rand1 = rand_pert(i,1,j)
+            m = RSHIFT(ABS(rand_perturb_on),1)
+            if (MOD(m,2) .ne. 0) rand2 = rand_pert(i,1,j)*2.
+            m = RSHIFT(ABS(rand_perturb_on),2)
+            if (MOD(m,2) .ne. 0) rand3 = 0.25*(rand_pert(i,1,j)+ABS(min_rand))
+!-GT        m = RSHIFT(ABS(rand_perturb_on),3)
+!-GT        if (MOD(m,2) .ne. 0) rand4 = 0.25*rand_pert(i,1,j)
+         endif
+!+---+-----------------------------------------------------------------+
+
          pptrain = 0.
          pptsnow = 0.
          pptgraul = 0.
@@ -1153,6 +1215,7 @@
 #if ( WRF_CHEM == 1 )
                       rainprod1d, evapprod1d, &
 #endif
+                      rand1, rand2, rand3, rand4, &
                       kts, kte, dt, i, j)
 
          pcp_ra(i,j) = pptrain
@@ -1296,7 +1359,7 @@
           ENDIF
           
           call calc_refl10cm (qv1d, qc1d, qr1d, nr1d, qs1d, qg1d,       &
-                      t1d, p1d, dBZ, kts, kte, i, j, kediagloc)
+                      t1d, p1d, dBZ, rand1, kts, kte, i, j, kediagloc)
           do k = kts, kte
              refl_10cm(i,k,j) = MAX(-35., dBZ(k))
           enddo
@@ -1356,6 +1419,7 @@
 #if ( WRF_CHEM == 1 )
                           rainprod, evapprod, &
 #endif
+                          rand1, rand2, rand3, rand4, &
                           kts, kte, dt, ii, jj)
 
       implicit none
@@ -1368,6 +1432,8 @@
       REAL, DIMENSION(kts:kte), INTENT(IN):: p1d, w1d, dzq
       REAL, INTENT(INOUT):: pptrain, pptsnow, pptgraul, pptice
       REAL, INTENT(IN):: dt
+      REAL, INTENT(IN):: rand1, rand2, rand3, rand4
+
 #if ( WRF_CHEM == 1 )
       REAL, DIMENSION(kts:kte), INTENT(INOUT):: &
                           rainprod, evapprod
@@ -1606,7 +1672,8 @@
             rc(k) = qc1d(k)*rho(k)
             nc(k) = MAX(2., MIN(nc1d(k)*rho(k), Nt_c_max))
             L_qc(k) = .true.
-            nu_c = MIN(15, NINT(1000.E6/nc(k)) + 2)
+            nu_c = NINT(1000.E6/nc(k)) + 2
+            nu_c = MAX(2, MIN(nu_c+NINT(rand2), 15))
             lamc = (nc(k)*am_r*ccg(2,nu_c)*ocg1(nu_c)/rc(k))**obmr
             xDc = (bm_r + nu_c + 1.) / lamc
             if (xDc.lt. D0c) then
@@ -1849,9 +1916,10 @@
 
       do k = kte, kts, -1
          ygra1 = alog10(max(1.E-9, rg(k)))
-         zans1 = (3.5 + 2./7. * (ygra1+7.))
+         zans1 = (3.5 + 2./7. * (ygra1+7.)) + rand1
          zans1 = MAX(2., MIN(zans1, 7.))
          N0_exp = 10.**(zans1)
+!        N0_exp = MAX(DBLE(gonv_min), MIN(N0_exp, DBLE(gonv_max)))
          lam_exp = (N0_exp*am_g*cgg(1)/rg(k))**oge1
          lamg = lam_exp * (cgg(3)*ogg2*ogg1)**obmg
          ilamg(k) = 1./lamg
@@ -1888,7 +1956,8 @@
 
          mvd_c(k) = D0c
          if (L_qc(k)) then
-          nu_c = MIN(15, NINT(1000.E6/nc(k)) + 2)
+          nu_c = NINT(1000.E6/nc(k)) + 2
+          nu_c = MAX(2, MIN(nu_c+NINT(rand2), 15))
           xDc = MAX(D0c*1.E6, ((rc(k)/(am_r*nc(k)))**obmr) * 1.E6)
           lamc = (nc(k)*am_r* ccg(2,nu_c) * ocg1(nu_c) / rc(k))**obmr
           mvd_c(k) = (3.0+nu_c+0.672) / lamc
@@ -2289,6 +2358,7 @@
                                 .and. temp(k).lt.253.15) ) then
            if (dustyIce .AND. is_aerosol_aware) then
             xnc = iceDeMott(tempc,qv(k),qvs(k),qvsi(k),rho(k),nifa(k))
+            xnc = xnc*(1.0 + 50.*rand3)
            else
             xnc = MIN(250.E3, TNO*EXP(ATO*(T_0-temp(k))))
            endif
@@ -2627,7 +2697,8 @@
          xrc=MAX(R1, (qc1d(k) + qcten(k)*dtsave)*rho(k))
          xnc=MAX(2., (nc1d(k) + ncten(k)*dtsave)*rho(k))
          if (xrc .gt. R1) then
-          nu_c = MIN(15, NINT(1000.E6/xnc) + 2)
+          nu_c = NINT(1000.E6/xnc) + 2
+          nu_c = MAX(2, MIN(nu_c+NINT(rand2), 15))
           lamc = (xnc*am_r*ccg(2,nu_c)*ocg1(nu_c)/rc(k))**obmr
           xDc = (bm_r + nu_c + 1.) / lamc
           if (xDc.lt. D0c) then
@@ -2910,9 +2981,10 @@
 
       do k = kte, kts, -1
          ygra1 = alog10(max(1.E-9, rg(k)))
-         zans1 = (3.5 + 2./7. * (ygra1+7.))
+         zans1 = (3.5 + 2./7. * (ygra1+7.)) + rand1
          zans1 = MAX(2., MIN(zans1, 7.))
          N0_exp = 10.**(zans1)
+!        N0_exp = MAX(DBLE(gonv_min), MIN(N0_exp, DBLE(gonv_max)))
          lam_exp = (N0_exp*am_g*cgg(1)/rg(k))**oge1
          lamg = lam_exp * (cgg(3)*ogg2*ogg1)**obmg
          ilamg(k) = 1./lamg
@@ -2956,7 +3028,7 @@
 !+---+-----------------------------------------------------------------+ !  DROPLET NUCLEATION
            if (clap .gt. eps) then
             if (is_aerosol_aware) then
-               xnc = MAX(2., activ_ncloud(temp(k), w1d(k), nwfa(k)))
+               xnc = MAX(2., activ_ncloud(temp(k), w1d(k)+rand3, nwfa(k)))
             else
                xnc = Nt_c
             endif
@@ -3195,7 +3267,8 @@
       do k = ksed1(5), kts, -1
          vtc = 0.
          if (rc(k) .gt. R1 .and. w1d(k) .lt. 1.E-1) then
-          nu_c = MIN(15, NINT(1000.E6/nc(k)) + 2)
+          nu_c = NINT(1000.E6/nc(k)) + 2
+          nu_c = MAX(2, MIN(nu_c+NINT(rand2), 15))
           lamc = (nc(k)*am_r*ccg(2,nu_c)*ocg1(nu_c)/rc(k))**obmr
           ilamc = 1./lamc
           vtc = rhof(k)*av_c*ccg(5,nu_c)*ocg2(nu_c) * ilamc**bv_c
@@ -3496,7 +3569,8 @@
            qc1d(k) = 0.0
            nc1d(k) = 0.0
          else
-           nu_c = MIN(15, NINT(1000.E6/(nc1d(k)*rho(k))) + 2)
+           nu_c = NINT(1000.E6/(nc1d(k)*rho(k))) + 2
+           nu_c = MAX(2, MIN(nu_c+NINT(rand2), 15))
            lamc = (am_r*ccg(2,nu_c)*ocg1(nu_c)*nc1d(k)/qc1d(k))**obmr
            xDc = (bm_r + nu_c + 1.) / lamc
            if (xDc.lt. D0c) then
@@ -5141,8 +5215,9 @@
 !.. melting level interface.
 !+---+-----------------------------------------------------------------+
 
-      subroutine calc_refl10cm (qv1d, qc1d, qr1d, nr1d, qs1d, qg1d,     &
-                          t1d, p1d, dBZ, kts, kte, ii, jj, ke_diag)
+      subroutine calc_refl10cm (qv1d, qc1d, qr1d, nr1d, qs1d, qg1d,    &
+                          t1d, p1d, dBZ, rand1, kts, kte, ii, jj,      &
+                          ke_diag)
 
       IMPLICIT NONE
 
@@ -5152,6 +5227,7 @@
                           qv1d, qc1d, qr1d, nr1d, qs1d, qg1d, t1d, p1d
       REAL, DIMENSION(kts:kte), INTENT(INOUT):: dBZ
 !     REAL, DIMENSION(kts:kte), INTENT(INOUT):: vt_dBZ
+      REAL, INTENT(IN):: rand1
 
 !..Local variables
       REAL, DIMENSION(kts:kte):: temp, pres, qv, rho, rhof
@@ -5295,9 +5371,10 @@
       if (ANY(L_qg .eqv. .true.)) then
       do k = kte, kts, -1
          ygra1 = alog10(max(1.E-9, rg(k)))
-         zans1 = (3.5 + 2./7. * (ygra1+7.))
+         zans1 = (3.5 + 2./7. * (ygra1+7.)) + rand1
          zans1 = MAX(2., MIN(zans1, 7.))
          N0_exp = 10.**(zans1)
+!        N0_exp = MAX(DBLE(gonv_min), MIN(N0_exp, DBLE(gonv_max)))
          lam_exp = (N0_exp*am_g*cgg(1)/rg(k))**oge1
          lamg = lam_exp * (cgg(3)*ogg2*ogg1)**obmg
          ilamg(k) = 1./lamg
