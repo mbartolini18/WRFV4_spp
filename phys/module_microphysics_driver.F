@@ -125,6 +125,9 @@ SUBROUTINE microphysics_driver(                                          &
                       ,ke_diag                                           &
                       ,re_cloud, re_ice, re_snow                         & ! G. Thompson
                       ,has_reqc, has_reqi, has_reqs                      & ! G. Thompson
+                      ,spp_mp                                            & ! G. Thompson
+                      ,kme_stoch                                         & ! G. Thompson
+                      ,pattern_spp_mp                                    & ! G. Thompson
                       ,ccn_conc                                          & ! RAS
                       ,scalar,num_scalar                                   &
                       ,kext_ql,kext_qs,kext_qg            &
@@ -700,6 +703,9 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  re_cloud, re_ice, re_snow
    INTEGER, INTENT(IN):: has_reqc, has_reqi, has_reqs
 
+   INTEGER, INTENT(IN) :: spp_mp, kme_stoch                     ! G. Thompson
+   REAL, DIMENSION(ims:ime,kms:kme_stoch,jms:jme), INTENT(IN):: pattern_spp_mp
+
   INTEGER,           INTENT(IN   )    :: aercu_opt
 # if (EM_CORE == 1)
   INTEGER, OPTIONAL, INTENT(IN   )    :: PBL
@@ -1047,6 +1053,10 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      has_reqc=has_reqc,                  & ! G. Thompson
                      has_reqi=has_reqi,                  & ! G. Thompson
                      has_reqs=has_reqs,                  & ! G. Thompson
+                     rand_perturb_on=spp_mp,             & ! G. Thompson
+                     kme_stoch=kme_stoch,                & ! G. Thompson
+                     rand_pert=pattern_spp_mp,           & ! G. Thompson
+                     grid_id=id,                         & ! G. Thompson
                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte)
@@ -1106,6 +1116,10 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      has_reqc=has_reqc,                  & ! G. Thompson
                      has_reqi=has_reqi,                  & ! G. Thompson
                      has_reqs=has_reqs,                  & ! G. Thompson
+                     rand_perturb_on=spp_mp,             & ! G. Thompson
+                     kme_stoch=kme_stoch,                & ! G. Thompson
+                     rand_pert=pattern_spp_mp,           & ! G. Thompson
+                     grid_id=id,                         & ! G. Thompson
                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte)

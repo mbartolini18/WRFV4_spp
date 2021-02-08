@@ -16,6 +16,7 @@ state    real   rand_pert       i{stoclev}j  dyn_em 1 -   rhdf=(p2c) "rand_pert"
 state    real   pattern_spp_conv i{stoclev}j dyn_em 1 -   rhdf=(p2c) "pattern_spp_conv" "pattern sppt conv" ""
 state    real   pattern_spp_pbl i{stoclev}j  dyn_em 1 -   rhdf=(p2c) "pattern_spp_pbl" "pattern sppt pbl" ""
 state    real   pattern_spp_lsm i{stoclev}j  dyn_em 1 -   rhdf=(p2c) "pattern_spp_lsm" "pattern sppt lsm" ""
+state    real   pattern_spp_mp  i{stoclev}j  dyn_em 1 -   rhdf=(p2c) "pattern_spp_mp"  "pattern spp mp"  ""
 state    real   rstoch          i{stoclev}j  dyn_em 1 -   rhdf=(p2c) "rstoch"          "randomn field for SPPT" ""
 
 state    real   RAND_REAL       i{stoclev}j  dyn_em 1 XYZ -          "RAND_REAL"       "array for FFTs" ""
@@ -63,6 +64,7 @@ state integer  ISEEDARR_RAND_PERT {seed}  misc   1  Z   rh     "ISEEDARR_RAND_PE
 state integer  iseedarr_spp_conv  {seed}  misc   1  Z   rh     "iseedarray_spp_conv"   "Array to hold seed for restart, RAND_PERT2" "" ""
 state integer  iseedarr_spp_pbl   {seed}  misc   1  Z   rh     "iseedarray_spp_pbl"    "Array to hold seed for restart, RAND_PERT3" "" ""
 state integer  iseedarr_spp_lsm   {seed}  misc   1  Z   rh     "iseedarray_spp_lsm"    "Array to hold seed for restart, RAND_PERT4" "" ""
+state integer  iseedarr_spp_mp    {seed}  misc   1  Z   rh     "iseedarray_spp_mp"     "Array to hold seed for restart, RAND_PERT5" "" ""
 
 # 1d arrays for FFT transpose
 state    real   RAND_REAL_xxx   i{stoclev}jx dyn_em 1 XYZ
@@ -170,6 +172,16 @@ rconfig   real        timescale_spp_lsm     namelist,stoch      max_domains     
 rconfig   integer     vertstruc_spp_lsm     namelist,stoch      1                     0  - "vertical structure for random perturb: 0=constant, 1=random phase"
 rconfig   integer     iseed_spp_lsm         namelist,stoch      1                   317  - "ISEED_RAND_PERT"       "RANDOM SEED FOR RAND_PERT "  ""
 
+# Namelist parameters for stochastic perturbed parameters (SPP) for mp
+
+rconfig   integer     spp_mp                namelist,stoch      max_domains           0  - "generate array with random perturbations: 0=off, 1=on"
+rconfig   real        gridpt_stddev_spp_mp  namelist,stoch      max_domains         0.5  - "gridpoint standard deviation of random perturbations"
+rconfig   real        stddev_cutoff_spp_mp  namelist,stoch      max_domains         4.5  - "cutoff tails of pdf above this threshold standard deviation"
+rconfig   real        lengthscale_spp_mp    namelist,stoch      max_domains     50000.0  - "Correlation length scale in meters"
+rconfig   real        timescale_spp_mp      namelist,stoch      max_domains     21600.0  - "Decorrelation time scale in s"
+rconfig   integer     vertstruc_spp_mp      namelist,stoch      1                      0 -  "vertical structure for random perturb: 0=constant, 1=random phase"
+rconfig   integer     iseed_spp_mp          namelist,stoch      1                   417  - "ISEED_RAND_MP"       "RANDOM SEED FOR RAND_PERT_MP"  ""
+
 # Derived namelist parameters used in share/module_check_amundo.F
 
 rconfig   integer     skebs_on                derived    1        0        - "skebs_on"         "skebs arrays are declared&filled for all domains"          ""
@@ -187,4 +199,4 @@ package  skebs_perturb   skebs_on==1          -   state:ru_tendf_stoch,rv_tendf_
 
 package  random_perturb  rand_perturb_on==1   -   state:rand_pert,SPFORCS,SPFORCC,SP_AMP,VERTSTRUCC,VERTSTRUCS,VERTAMPT,RAND_REAL,RAND_IMAG,RAND_REAL_xxx,RAND_REAL_yyy,RAND_IMAG_xxx,RAND_IMAG_yyy
 
-package  stoch_param_perturb spp_on==1        -   state:pattern_spp_conv,field_conv,SPFORCS2,SPFORCC2,SP_AMP2,pattern_spp_pbl,field_pbl,SPFORCS3,SPFORCC3,SP_AMP3,pattern_spp_lsm,field_sf,SPFORCS4,SPFORCC4,SP_AMP4,VERTSTRUCC,VERTSTRUCS,VERTAMPT,RAND_REAL,RAND_IMAG,RAND_REAL_xxx,RAND_REAL_yyy,RAND_IMAG_xxx,RAND_IMAG_yyy
+package  stoch_param_perturb spp_on==1        -   state:pattern_spp_conv,field_conv,SPFORCS2,SPFORCC2,SP_AMP2,pattern_spp_pbl,field_pbl,SPFORCS3,SPFORCC3,SP_AMP3,pattern_spp_lsm,field_sf,SPFORCS4,SPFORCC4,SP_AMP4,pattern_spp_mp,SPFORCS5,SPFORCC5,SP_AMP5,VERTSTRUCC,VERTSTRUCS,VERTAMPT,RAND_REAL,RAND_IMAG,RAND_REAL_xxx,RAND_REAL_yyy,RAND_IMAG_xxx,RAND_IMAG_yyy

@@ -3789,6 +3789,9 @@ BENCH_START(micro_driver_tim)
       &        , qnwfa2d=grid%qnwfa2d, qnifa2d=grid%qnifa2d                             & ! G. Thompson
       &        , diagflag=diag_flag, do_radar_ref=config_flags%do_radar_ref &
       &        , ke_diag=ke_diag                                           &
+      &        , spp_mp=config_flags%spp_mp                                & !G. Thompson
+      &        , kme_stoch=grid%num_stoch_levels                           & !G. Thompson
+      &        , pattern_spp_mp=grid%pattern_spp_mp                        & !G. Thompson
       &        ,u=grid%u_phy,v=grid%v_phy &
       &        ,scalar=scalar,num_scalar=num_scalar                             &
       &        ,TH_OLD=grid%th_old                                        &
