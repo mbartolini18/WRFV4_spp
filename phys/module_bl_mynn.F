@@ -258,7 +258,7 @@ MODULE module_bl_mynn
   REAL, PARAMETER :: dheat_opt = 1.
 
   !Option to activate environmental subsidence in mass-flux scheme
-  LOGICAL, PARAMETER :: env_subs = .true.
+  LOGICAL, PARAMETER :: env_subs = .false.
 
   !option to print out more stuff for debugging purposes
   LOGICAL, PARAMETER :: debug_code = .false.
