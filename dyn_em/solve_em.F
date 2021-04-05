@@ -3789,6 +3789,33 @@ BENCH_START(micro_driver_tim)
       &        , qnwfa2d=grid%qnwfa2d, qnifa2d=grid%qnifa2d                             & ! G. Thompson
       &        , diagflag=diag_flag, do_radar_ref=config_flags%do_radar_ref &
       &        , ke_diag=ke_diag                                           &
+      &        , prw_vcd3d=grid%prw_vcd                                    &
+      &        , pri_inu3d=grid%pri_inu                                    &
+      &        , pri_ihm3d=grid%pri_ihm                                    &
+      &        , pri_ide3d=grid%pri_ide                                    &
+      &        , pri_wfz3d=grid%pri_wfz                                    &
+      &        , pri_rfz3d=grid%pri_rfz                                    &
+      &        , prs_sde3d=grid%prs_sde                                    &
+      &        , prs_sci3d=grid%prs_sci                                    &
+      &        , prs_ihm3d=grid%prs_ihm                                    &
+      &        , prs_ide3d=grid%prs_ide                                    &
+      &        , prs_scw3d=grid%prs_scw                                    &
+      &        , prs_iau3d=grid%prs_iau                                    &
+      &        , prr_rci3d=grid%prr_rci                                    &
+      &        , prg_gcw3d=grid%prg_gcw                                    &
+      &        , prr_rcw3d=grid%prr_rcw                                    &
+      &        , prv_rev3d=grid%prv_rev                                    &
+      &        , prr_wau3d=grid%prr_wau                                    &
+      &        , prr_rcs3d=grid%prr_rcs                                    &
+      &        , prr_sml3d=grid%prr_sml                                    &
+      &        , prg_rci3d=grid%prg_rci                                    &
+      &        , prg_ihm3d=grid%prg_ihm                                    &
+      &        , prr_rcg3d=grid%prr_rcg                                    &
+      &        , prr_gml3d=grid%prr_gml                                    &
+      &        , prg_rcs3d=grid%prg_rcs                                    &
+      &        , prg_scw3d=grid%prg_scw                                    &
+      &        , prg_rfz3d=grid%prg_rfz                                    &
+      &        , prg_gde3d=grid%prg_gde                                    &
       &        , spp_mp=config_flags%spp_mp                                & !G. Thompson
       &        , kme_stoch=grid%num_stoch_levels                           & !G. Thompson
       &        , pattern_spp_mp=grid%pattern_spp_mp                        & !G. Thompson
