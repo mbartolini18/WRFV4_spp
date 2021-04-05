@@ -125,6 +125,33 @@ SUBROUTINE microphysics_driver(                                          &
                       ,ke_diag                                           &
                       ,re_cloud, re_ice, re_snow                         & ! G. Thompson
                       ,has_reqc, has_reqi, has_reqs                      & ! G. Thompson
+                      ,prw_vcd3d                                         &
+                      ,pri_inu3d                                         &
+                      ,pri_ihm3d                                         &
+                      ,pri_ide3d                                         &
+                      ,pri_wfz3d                                         &
+                      ,pri_rfz3d                                         &
+                      ,prs_sde3d                                         &
+                      ,prs_sci3d                                         &
+                      ,prs_ihm3d                                         &
+                      ,prs_ide3d                                         &
+                      ,prs_scw3d                                         &
+                      ,prs_iau3d                                         &
+                      ,prr_rci3d                                         &
+                      ,prg_gcw3d                                         &
+                      ,prr_rcw3d                                         &
+                      ,prv_rev3d                                         &
+                      ,prr_wau3d                                         &
+                      ,prr_rcs3d                                         &
+                      ,prr_sml3d                                         &
+                      ,prg_rci3d                                         &
+                      ,prg_ihm3d                                         &
+                      ,prr_rcg3d                                         &
+                      ,prr_gml3d                                         &
+                      ,prg_rcs3d                                         &
+                      ,prg_scw3d                                         &
+                      ,prg_rfz3d                                         &
+                      ,prg_gde3d                                         &
                       ,spp_mp                                            & ! G. Thompson
                       ,kme_stoch                                         & ! G. Thompson
                       ,pattern_spp_mp                                    & ! G. Thompson
@@ -703,6 +730,17 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  re_cloud, re_ice, re_snow
    INTEGER, INTENT(IN):: has_reqc, has_reqi, has_reqs
 
+   REAL, DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: &
+                 prw_vcd3d, pri_inu3d, pri_ihm3d,        &
+                 pri_ide3d, pri_wfz3d, pri_rfz3d,        &
+                 prs_sde3d, prs_sci3d, prs_ihm3d,        &
+                 prs_ide3d, prs_scw3d, prs_iau3d,        &
+                 prr_rci3d, prg_gcw3d, prr_rcw3d,        &
+                 prv_rev3d, prr_wau3d, prr_rcs3d,        &
+                 prr_sml3d, prg_rci3d, prg_ihm3d,        &
+                 prr_rcg3d, prr_gml3d, prg_rcs3d,        &
+                 prg_scw3d, prg_rfz3d, prg_gde3d
+
    INTEGER, INTENT(IN) :: spp_mp, kme_stoch                     ! G. Thompson
    REAL, DIMENSION(ims:ime,kms:kme_stoch,jms:jme), INTENT(IN):: pattern_spp_mp
 
@@ -1047,6 +1085,33 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      diagflag=diagflag,                  &
                      ke_diag = ke_diag,                  &
                      do_radar_ref=do_radar_ref,          &
+                     prw_vcd3d=prw_vcd3d,                &
+                     pri_inu3d=pri_inu3d,                &
+                     pri_ihm3d=pri_ihm3d,                &
+                     pri_ide3d=pri_ide3d,                &
+                     pri_wfz3d=pri_wfz3d,                &
+                     pri_rfz3d=pri_rfz3d,                &
+                     prs_sde3d=prs_sde3d,                &
+                     prs_sci3d=prs_sci3d,                &
+                     prs_ihm3d=prs_ihm3d,                &
+                     prs_ide3d=prs_ide3d,                &
+                     prs_scw3d=prs_scw3d,                &
+                     prs_iau3d=prs_iau3d,                &
+                     prr_rci3d=prr_rci3d,                &
+                     prg_gcw3d=prg_gcw3d,                &
+                     prr_rcw3d=prr_rcw3d,                &
+                     prv_rev3d=prv_rev3d,                &
+                     prr_wau3d=prr_wau3d,                &
+                     prr_rcs3d=prr_rcs3d,                &
+                     prr_sml3d=prr_sml3d,                &
+                     prg_rci3d=prg_rci3d,                &
+                     prg_ihm3d=prg_ihm3d,                &
+                     prr_rcg3d=prr_rcg3d,                &
+                     prr_gml3d=prr_gml3d,                &
+                     prg_rcs3d=prg_rcs3d,                &
+                     prg_scw3d=prg_scw3d,                &
+                     prg_rfz3d=prg_rfz3d,                &
+                     prg_gde3d=prg_gde3d,                &
                      re_cloud=re_cloud,                  &
                      re_ice=re_ice,                      &
                      re_snow=re_snow,                    &
@@ -1110,6 +1175,33 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      diagflag=diagflag,                  &
                      ke_diag = ke_diag,                  &
                      do_radar_ref=do_radar_ref,          &
+                     prw_vcd3d=prw_vcd3d,                &
+                     pri_inu3d=pri_inu3d,                &
+                     pri_ihm3d=pri_ihm3d,                &
+                     pri_ide3d=pri_ide3d,                &
+                     pri_wfz3d=pri_wfz3d,                &
+                     pri_rfz3d=pri_rfz3d,                &
+                     prs_sde3d=prs_sde3d,                &
+                     prs_sci3d=prs_sci3d,                &
+                     prs_ihm3d=prs_ihm3d,                &
+                     prs_ide3d=prs_ide3d,                &
+                     prs_scw3d=prs_scw3d,                &
+                     prs_iau3d=prs_iau3d,                &
+                     prr_rci3d=prr_rci3d,                &
+                     prg_gcw3d=prg_gcw3d,                &
+                     prr_rcw3d=prr_rcw3d,                &
+                     prv_rev3d=prv_rev3d,                &
+                     prr_wau3d=prr_wau3d,                &
+                     prr_rcs3d=prr_rcs3d,                &
+                     prr_sml3d=prr_sml3d,                &
+                     prg_rci3d=prg_rci3d,                &
+                     prg_ihm3d=prg_ihm3d,                &
+                     prr_rcg3d=prr_rcg3d,                &
+                     prr_gml3d=prr_gml3d,                &
+                     prg_rcs3d=prg_rcs3d,                &
+                     prg_scw3d=prg_scw3d,                &
+                     prg_rfz3d=prg_rfz3d,                &
+                     prg_gde3d=prg_gde3d,                &
                      re_cloud=re_cloud,                  & ! G. Thompson
                      re_ice=re_ice,                      & ! G. Thompson
                      re_snow=re_snow,                    & ! G. Thompson
