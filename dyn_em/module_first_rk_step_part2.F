@@ -317,6 +317,28 @@ CONTAINS
                            grid%stddev_cutoff_spp_lsm,grid%gridpt_stddev_spp_lsm, & 
                            grid%VERTSTRUCC,grid%VERTSTRUCS,grid%VERTAMPT       )
       ENDIF !spp_lsm
+      if ((grid%spp_mp .NE. 0).and.(grid%id .EQ. 1 )) then
+           CALL wrf_debug (100, ' call rand_pert_update for SPP_MP' )
+           CALL RAND_PERT_UPDATE(grid,'T',                                     &
+                           grid%SPFORCS5,grid%SPFORCC5,                        &
+                           grid%SP_AMP5,grid%ALPH_RAND5,                       &
+                           ips, ipe, jps, jpe, kps, kpe,                       &
+                           ids, ide, jds, jde, kds, kde,                       &
+                           ims, ime, jms, jme, kms, kme,                       &
+                           k_start, k_end,                                     &
+                           imsx,imex,jmsx,jmex,kmsx,kmex,                      &
+                           ipsx,ipex,jpsx,jpex,kpsx,kpex,                      &
+                           imsy,imey,jmsy,jmey,kmsy,kmey,                      &
+                           ipsy,ipey,jpsy,jpey,kpsy,kpey,                      &
+                           grid%num_stoch_levels,grid%num_stoch_levels,        &
+                           grid%num_stoch_levels,grid%num_stoch_levels,        &
+                           config_flags%restart, grid%iseedarr_spp_mp,         &
+                           config_flags%seed_dim,                              &
+                           grid%DX,grid%DY,grid%vertstruc_spp_mp,              &
+                           grid%pattern_spp_mp,                                & 
+                           grid%stddev_cutoff_spp_mp,grid%gridpt_stddev_spp_mp, & 
+                           grid%VERTSTRUCC,grid%VERTSTRUCS,grid%VERTAMPT       )
+      ENDIF !spp_mp
 
 ! calculate_phy_tend
 
