@@ -1275,7 +1275,7 @@
     INTEGER, INTENT( IN ) :: rand_perturb, kme_stoch
     REAL, DIMENSION(ims:ime, kms:kme_stoch, jms:jme) :: rand_pert
 !
- 
+
 ! Local variables.
 
     INTEGER  &
@@ -1960,7 +1960,6 @@ SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
    REAL, DIMENSION( ims:ime , kms:kme , jms:jme ) , INTENT(IN   ) ::      BN2
    INTEGER, INTENT( IN ) :: rand_perturb, kme_stoch
    REAL, DIMENSION(ims:ime, kms:kme_stoch, jms:jme) :: rand_pert
-
 
    REAL, DIMENSION( ims:ime , kms:kme , jms:jme ) , INTENT(IN   ) ::     rdzw,zx,zy
 
