@@ -131,6 +131,7 @@ contains
 
       LOGICAL                  ::               first_trip_for_this_domain
       INTEGER                  ::               K
+      CHARACTER (LEN=128) :: mess
 
 
    IF ( first_trip_for_this_domain ) THEN
@@ -139,7 +140,8 @@ contains
 
    IF ((( grid%id == 1) .AND. (.NOT. grid%did_stoch)) .AND. &
        (( grid%skebs_on== 1) .OR.( grid%sppt_on== 1) .OR. ( grid%rand_perturb_on== 1) .OR. &
-         ( grid%spp_conv== 1) .OR. ( grid%spp_pbl== 1) .OR. ( grid%spp_lsm== 1)) ) THEN
+         ( grid%spp_conv== 1) .OR. ( grid%spp_pbl== 1) .OR. ( grid%spp_lsm== 1) .OR. &
+         ( grid%spp_mp.NE.0)) ) THEN
 
      grid%did_stoch = .TRUE.
 
@@ -329,6 +331,37 @@ IF (grid%sppt_on==1) then
                        ims, ime, jms, jme, kms, kme,                      &
                        its, ite, jts, jte, kts, kte                       )
      ENDIF
+! Initialize Stochastic Parameter Peturbations (SPP) to MP scheme
+     IF (grid%spp_mp .NE. 0) then
+     if (.not.config_flags%restart) then ! set random number seed (else  iseedarray is read in from restart files)
+         call rand_seed (config_flags, grid%iseed_spp_mp, grid%iseedarr_spp_mp , 1, config_flags%seed_dim)
+     endif
+     WRITE(mess,FMT='(A,i4,i4)') ' DEBUG-GT: setting up RAND_PERTURB for SPP_MP, with setting ', grid%spp_mp, config_flags%seed_dim
+     CALL wrf_debug(0, mess)
+     WRITE(mess,FMT='(A,1x,f13.8,1x,f13.2,1x,f13.1,A,i3)')                &
+                '  DEBUG-GT: using settings of stddev, len, time: ',      &
+                  grid%gridpt_stddev_spp_mp, grid%lengthscale_spp_mp,     &
+                  grid%timescale_spp_mp, ' on num_stoch_levs: ', grid%num_stoch_levels
+     CALL wrf_debug(0, mess)
+     call SETUP_RAND_PERTURB('M',                                         &
+                       grid%vertstruc_spp_mp,config_flags%restart,        &
+                       grid%SP_AMP5,                                      &
+                       grid%SPFORCC5,grid%SPFORCS5,grid%ALPH_RAND5,       &
+                       grid%VERTSTRUCC,grid%VERTSTRUCS,grid%VERTAMPT,     &
+                       grid%KMINFORCT,grid%KMAXFORCT,                     &
+                       grid%LMINFORCT,grid%LMAXFORCT,                     &
+                       grid%KMAXFORCTH,grid%LMAXFORCTH,                   &
+                       grid%time_step,grid%DX,grid%DY,                    &
+                       grid%gridpt_stddev_spp_mp,                         &
+                       grid%lengthscale_spp_mp,                           &
+                       grid%timescale_spp_mp,                             &
+                       grid%TOT_BACKSCAT_PSI,grid%ZTAU_PSI,               &
+                       grid%REXPONENT_PSI,                                &
+                       ids, ide, jds, jde, kds, kde,                      &
+                       ims, ime, jms, jme, kms, kme,                      &
+                       its, ite, jts, jte, kts, kte                       )
+
+     ENDIF
 
      ENDIF ! skebs or sppt or rand_perturb or spp
 
@@ -471,7 +504,8 @@ IF (grid%sppt_on==1) then
       WRITE(*,'('' =============================================='')')
       endif
 
-     IF ((variable == 'P') .or. (variable == 'R') .or. (variable == 'S') .or. (variable == 'Q') .or. (variable == 'O')) then
+     IF ((variable == 'P') .or. (variable == 'R') .or. (variable == 'S') .or.  &
+         (variable == 'Q') .or. (variable == 'O') .or. (variable == 'M')) then
       kappat= L_rand_perturb**2 ! L^2= kappa*T,  where L is a length scale in m; set to for L=100km
       phi = exp (-float(itime_step)/tau_rand_perturb)
       alph = 1.-phi
@@ -543,6 +577,18 @@ IF (grid%sppt_on==1) then
       WRITE(*,'('' =============================================='')')
      endif ! variable
 
+     if (variable == 'M') then
+      WRITE(*,'(''                                               '')')
+      WRITE(*,'('' =============================================='')')
+      WRITE(*,'('' >> Initializing stochastic parameter perturbations for MP<< '')')
+      WRITE(*,'('' rand_pert_vertstruc5                            '',I10)') skebs_vertstruc
+      WRITE(*,'('' Decorrelation time of noise, Tau ='',E12.5)') tau_rand_perturb
+      WRITE(*,'('' Autoregressive parameter Phi ='',E12.5)') phi
+      WRITE(*,'('' Length Scale L'',E12.5)') l_rand_perturb
+      WRITE(*,'('' Variance in gridpoint space'',E12.5)') gridpt_stddev_rand_perturb
+      WRITE(*,'('' =============================================='')')
+     endif ! variable
+
      endif !is print
 !     --------------------------------------------------------------------------------------
 !     Compute Normalization constants       
@@ -564,7 +610,8 @@ IF (grid%sppt_on==1) then
           else if (variable == 'T') then
             ZCHI(IL+1,IK+1)=((IK/RY*IK/RY)+(IL/RX*IL/RX))**(REXPONENT/2.)  ! SKEBS :T
             ZGAMMAN= ZGAMMAN + ((IK/RY*IK/RY)+(IL/RX*IL/RX))**(REXPONENT)          
-          else if ((variable == 'P') .or. (variable == 'R') .or.  (variable == 'S') .or. (variable == 'O') .or.  (variable == 'Q     ')) then
+          else if ((variable == 'P') .or. (variable == 'R') .or. (variable == 'S') .or.  &
+                   (variable == 'O') .or. (variable == 'M') .or. (variable == 'Q')) then
             ZCHI(IL+1,IK+1)=exp(  -2*RPI**2*kappat*((IK/RY*IK/RY)+(IL/RX*IL/RX)) ) !SPPT
             ZGAMMAN= ZGAMMAN + exp(  -4*RPI**2*kappat*((IK/RY*IK/RY)+(IL/RX*IL/RX)) ) !SPPT
           endif
@@ -577,7 +624,8 @@ IF (grid%sppt_on==1) then
          ZCONSTF0=SQRT(ALPH*TOT_BACKSCAT/(float(itime_step)*ZSIGMA2*ZGAMMAN))/(2*RPI)
       elseif  (variable == 'T') then     
          ZCONSTF0=SQRT(T0*ALPH*TOT_BACKSCAT/(float(itime_step)*cp*ZSIGMA2*ZGAMMAN))
-      elseif ((variable == 'P') .or. (variable == 'R') .or.  (variable == 'S') .or. (variable == 'O') .or.  (variable == 'Q     ')) then
+      elseif ((variable == 'P') .or. (variable == 'R') .or. (variable == 'S') .or.  &
+              (variable == 'O') .or. (variable == 'M') .or. (variable == 'Q')) then
          ZCONSTF0= gridpt_stddev_rand_perturb*sqrt((1.-phi**2)/(2.*ZGAMMAN))
       endif
   

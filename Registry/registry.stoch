@@ -83,6 +83,7 @@ state real      ALPH_RAND        -      misc        1         -     -         "A
 state real      ALPH_RAND2       -      misc        1         -     -         "ALPH_RAND2"  "autoregressive coeff. for generic rand. pert."  ""
 state real      ALPH_RAND3       -      misc        1         -     -         "ALPH_RAND3"  "autoregressive coeff. for generic rand. pert."  ""
 state real      ALPH_RAND4       -      misc        1         -     -         "ALPH_RAND4"  "autoregressive coeff. for generic rand. pert."  ""
+state real      ALPH_RAND5       -      misc        1         -     -         "ALPH_RAND5"  "autoregressive coeff. for generic rand. pert."  ""
 state logical   did_stoch        -      misc        1         -     r         "DID_STOCH"   "Logical to tell us that we already did the initialization for dom 1"  ""
 
 # Namelist parameters for random number streams
@@ -186,7 +187,7 @@ rconfig   integer     iseed_spp_mp          namelist,stoch      1               
 
 rconfig   integer     skebs_on                derived    1        0        - "skebs_on"         "skebs arrays are declared&filled for all domains"          ""
 rconfig   integer     sppt_on                 derived    1        0        - "sppt_on"          "sppt arrays are declared&filled for all domains"           ""
-rconfig   integer     spp_on                  derived    1        0        - "skebs_on"         "skebs arrays are declared&filled for all domains"          ""
+rconfig   integer     spp_on                  derived    1        0        - "spp_on"           "spp arrays are declared&filled for all domains"            ""
 rconfig   integer     rand_perturb_on         derived    1        0        - "rand_perturb_on " "random perturb. array is declared&filled for all domains"  ""
 rconfig   integer     num_stoch_levels        derived    1        1        - "num_stoch_levels" "number of vertical levels of random fields"  ""
 rconfig   integer     seed_dim                derived    1        0        - "seed_dim"         "output of CALL RANDOM_SEED(SIZE=seed_dim)"   ""

@@ -982,8 +982,8 @@
    ENDDO
    DO i = 1, model_config_rec % max_dom
          IF ( .NOT. model_config_rec % grid_allowed(i) ) CYCLE
-         IF (( model_config_rec % spp_conv(i) .ne. 0).or.( model_config_rec % spp_pbl(i) .ne. 0).or. (model_config_rec % spp_lsm(i) .ne. 0)  &
-           .or. ( model_config_rec % spp(i) .ne. 0))  then
+         IF (( model_config_rec % spp_conv(i) .ne. 0) .or. ( model_config_rec % spp_pbl(i) .ne. 0) .or. (model_config_rec % spp_lsm(i) .ne. 0)  &
+          .or. ( model_config_rec % spp_mp(i) .ne. 0) .or. ( model_config_rec % spp(i) .ne. 0))  then
            model_config_rec % spp_on=1
            IF (( model_config_rec%KMINFORCT .ne. 1) .or. (model_config_rec%KMAXFORCT .ne. 1000000) .or.   &
                ( model_config_rec%LMINFORCT .ne. 1) .or. (model_config_rec%LMAXFORCT .ne. 1000000)) then    
@@ -1000,6 +1000,7 @@
            model_config_rec % spp_conv=1
            model_config_rec % spp_pbl=1
            model_config_rec % spp_lsm=1
+!          model_config_rec % spp_mp=1      ! This should not be 1, because it can be any non-zero value
          endif
    ENDDO
    DO i = 1, model_config_rec % max_dom
