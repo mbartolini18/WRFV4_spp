@@ -2861,6 +2861,7 @@ package   gsfcgcescheme   mp_physics==97               -             moist:qv,qc
 
 
 package   radar_refl      compute_radar_ref==1         -             state:refl_10cm,refd_max
+package   mp_output_prates mp_te_output_prates==1   -             state:prw_vcd,pri_inu,pri_ihm,pri_ide,pri_wfz,pri_rfz,prs_sde,prs_sci,prs_ihm,prs_ide,prs_scw,prs_iau,prr_rci,prg_gcw,prr_rcw,prv_rev,prr_wau,prr_rcs,prr_sml,prg_rci,prg_ihm,prr_rcg,prr_gml,prg_rcs,prg_scw,prg_rfz,prg_gde
 endif
 
 package   nodfimoist        mp_physics_dfi==-1       -             -
