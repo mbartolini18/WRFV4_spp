@@ -3789,6 +3789,7 @@ BENCH_START(micro_driver_tim)
       &        , qnwfa2d=grid%qnwfa2d, qnifa2d=grid%qnifa2d                             & ! G. Thompson
       &        , diagflag=diag_flag, do_radar_ref=config_flags%do_radar_ref &
       &        , ke_diag=ke_diag                                           &
+      &        , mp_te_output_prates=grid%mp_te_output_prates              &
       &        , prw_vcd3d=grid%prw_vcd                                    &
       &        , pri_inu3d=grid%pri_inu                                    &
       &        , pri_ihm3d=grid%pri_ihm                                    &
