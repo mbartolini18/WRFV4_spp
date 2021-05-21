@@ -732,7 +732,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    INTEGER, INTENT(IN):: has_reqc, has_reqi, has_reqs
 
    INTEGER, OPTIONAL, INTENT(IN) :: mp_te_output_prates
-   REAL, DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: &
+   REAL, OPTIONAL, DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: &
                  prw_vcd3d, pri_inu3d, pri_ihm3d,        &
                  pri_ide3d, pri_wfz3d, pri_rfz3d,        &
                  prs_sde3d, prs_sci3d, prs_ihm3d,        &
