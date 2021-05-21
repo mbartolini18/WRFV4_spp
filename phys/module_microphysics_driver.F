@@ -125,6 +125,7 @@ SUBROUTINE microphysics_driver(                                          &
                       ,ke_diag                                           &
                       ,re_cloud, re_ice, re_snow                         & ! G. Thompson
                       ,has_reqc, has_reqi, has_reqs                      & ! G. Thompson
+                      ,mp_te_output_prates                               &
                       ,prw_vcd3d                                         &
                       ,pri_inu3d                                         &
                       ,pri_ihm3d                                         &
@@ -730,6 +731,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  re_cloud, re_ice, re_snow
    INTEGER, INTENT(IN):: has_reqc, has_reqi, has_reqs
 
+   INTEGER, OPTIONAL, INTENT(IN) :: mp_te_output_prates
    REAL, DIMENSION(ims:ime,kms:kme,jms:jme), INTENT(INOUT) :: &
                  prw_vcd3d, pri_inu3d, pri_ihm3d,        &
                  pri_ide3d, pri_wfz3d, pri_rfz3d,        &
@@ -1085,6 +1087,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      diagflag=diagflag,                  &
                      ke_diag = ke_diag,                  &
                      do_radar_ref=do_radar_ref,          &
+                     mp_te_output_prates=mp_te_output_prates, &
                      prw_vcd3d=prw_vcd3d,                &
                      pri_inu3d=pri_inu3d,                &
                      pri_ihm3d=pri_ihm3d,                &
@@ -1175,6 +1178,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      diagflag=diagflag,                  &
                      ke_diag = ke_diag,                  &
                      do_radar_ref=do_radar_ref,          &
+                     mp_te_output_prates=mp_te_output_prates, &
                      prw_vcd3d=prw_vcd3d,                &
                      pri_inu3d=pri_inu3d,                &
                      pri_ihm3d=pri_ihm3d,                &

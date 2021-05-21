@@ -984,6 +984,7 @@
                               rainprod, evapprod, &
 #endif
                               refl_10cm, diagflag, ke_diag, do_radar_ref,      &
+                              mp_te_output_prates,                    &
                               prw_vcd3d, pri_inu3d, pri_ihm3d,        &
                               pri_ide3d, pri_wfz3d, pri_rfz3d,        &
                               prs_sde3d, prs_sci3d, prs_ihm3d,        &
@@ -1077,7 +1078,8 @@
       INTEGER:: kmax_qc,kmax_qr,kmax_qi,kmax_qs,kmax_qg,kmax_ni,kmax_nr
       INTEGER:: i_start, j_start, i_end, j_end
       LOGICAL, OPTIONAL, INTENT(IN) :: diagflag
-      INTEGER, OPTIONAL, INTENT(IN) :: do_radar_ref, ke_diag
+      INTEGER, OPTIONAL, INTENT(IN) :: do_radar_ref, ke_diag, &
+      mp_te_output_prates
       CHARACTER*256:: mp_debug
       
       integer :: kediagloc
@@ -1422,7 +1424,7 @@
          ENDIF
 
          IF ( PRESENT (diagflag) ) THEN
-         if (diagflag) then
+         if (diagflag .and. mp_te_output_prates == 1) then
           prw_vcd3d(i,k,j) = 0.
           pri_inu3d(i,k,j) = 0.
           pri_ihm3d(i,k,j) = 0.
