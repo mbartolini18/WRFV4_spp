@@ -1204,7 +1204,7 @@
                                 mix_upper_bound,                         &
                                 msftx, msfty,                            &
                                 zx, zy,                                  &
-                                rand_perturb,kme_stoch,rand_pert,        &
+                                spp_pbl, pattern_spp_pbl,                &
                                 hpbl,dlk,xkmv_meso,                      & !XZ
                                 ids, ide, jds, jde, kds, kde,            &
                                 ims, ime, jms, jme, kms, kme,            &
@@ -1272,10 +1272,12 @@
     REAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT( INOUT ) & 
     :: xkmv_meso
 
-    INTEGER, INTENT( IN ) :: rand_perturb, kme_stoch
-    REAL, DIMENSION(ims:ime, kms:kme_stoch, jms:jme) :: rand_pert
-!
+    INTEGER, OPTIONAL, INTENT( IN ) :: spp_pbl
+    REAL, DIMENSION( ims:ime, kms:kme, jme:jme ), OPTIONAL        &
+    :: pattern_spp_pbl
 
+!
+ 
 ! Local variables.
 
     INTEGER  &
@@ -1329,11 +1331,11 @@
                                ims, ime, jms, jme, kms, kme,            &
                                its, ite, jts, jte, kts, kte             )
       CASE (4)
-            CALL smag2d_km(    config_flags, xkmh, xkmv, BN2,           &
+            CALL smag2d_km(    config_flags, xkmh, xkmv,                &
                                xkhh, xkhv, defor11, defor22, defor12,   &
                                rdzw, dx, dy, msftx, msfty,              &
-                               zx, zy, dt, mix_upper_bound,             &
-                               rand_perturb, kme_stoch, rand_pert,      &   ! G. Thompson
+                               zx, zy,                                  &
+                               spp_pbl, pattern_spp_pbl,                &
                                ids, ide, jds, jde, kds, kde,            &
                                ims, ime, jms, jme, kms, kme,            &
                                its, ite, jts, jte, kts, kte             )
@@ -1936,10 +1938,10 @@ END SUBROUTINE smag_km
 !=======================================================================
 !=======================================================================
 
-SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
+SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,xkhh,xkhv,                        &
                     defor11,defor22,defor12,                                   &
-                    rdzw,dx,dy,msftx, msfty,zx,zy,dt,mix_upper_bound,          &
-                    rand_perturb, kme_stoch, rand_pert,                        &   ! G. Thompson
+                    rdzw,dx,dy,msftx, msfty,zx,zy,                             &
+                    spp_pbl, pattern_spp_pbl,                                  &
                     ids,ide, jds,jde, kds,kde,                                 &
                     ims,ime, jms,jme, kms,kme,                                 &
                     its,ite, jts,jte, kts,kte                                  )
@@ -1953,13 +1955,11 @@ SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
 
    INTEGER ,          INTENT(IN   )           :: ids, ide, jds, jde, kds, kde, &
                                                  ims, ime, jms, jme, kms, kme, &
-                                                 its, ite, jts, jte, kts, kte
+                                                 its, ite, jts, jte, kts, kte, &
+                                                 spp_pbl
 
-   REAL    ,          INTENT(IN   )           :: dx, dy, dt, mix_upper_bound
+   REAL    ,          INTENT(IN   )           :: dx, dy
 
-   REAL, DIMENSION( ims:ime , kms:kme , jms:jme ) , INTENT(IN   ) ::      BN2
-   INTEGER, INTENT( IN ) :: rand_perturb, kme_stoch
-   REAL, DIMENSION(ims:ime, kms:kme_stoch, jms:jme) :: rand_pert
 
    REAL, DIMENSION( ims:ime , kms:kme , jms:jme ) , INTENT(IN   ) ::     rdzw,zx,zy
 
@@ -1973,15 +1973,20 @@ SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
                                                                       defor22, &
                                                                       defor12
 
+   REAL , DIMENSION( ims:ime , kms:kme, jms:jme ), OPTIONAL, INTENT(IN)    ::  &
+                                                              pattern_spp_pbl
+
    REAL , DIMENSION( ims:ime, jms:jme), INTENT(IN   ) ::                msftx, &
                                                                         msfty
 ! LOCAL VARS
 
    INTEGER :: i_start, i_end, j_start, j_end, ktf, i, j, k
-   REAL    :: deltas, tmp, pr, mlen_h, c_s, c_s_stoch
+   REAL    :: deltas, tmp, pr, mlen_h, c_s
    REAL    :: dxm, dym, tmpzx, tmpzy, alpha, def_limit
 
    REAL, DIMENSION( its:ite , kts:kte , jts:jte )                 ::     def2
+
+   REAL, DIMENSION( its:ite , jts:jte )                           ::     c_s_stoch
 
 ! End declarations.
 !-----------------------------------------------------------------------
@@ -2007,6 +2012,24 @@ SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
    pr=prandtl
    c_s = config_flags%c_s
 
+   IF (spp_pbl == 1) THEN
+      do j=j_start,j_end
+      do i=i_start,i_end
+         IF ( pattern_spp_pbl(i,1,j) .GE. 0.) THEN
+            c_s_stoch(i,j)=MIN(c_s + c_s*2.5*pattern_spp_pbl(i,1,j), 0.5)
+         ELSE
+            c_s_stoch(i,j)=MAX(c_s + c_s*1.2*pattern_spp_pbl(i,1,j), 0.12)
+         ENDIF
+      enddo
+      enddo
+   ELSE
+      do j=j_start,j_end
+      do i=i_start,i_end
+         c_s_stoch(i,j)=c_s
+      enddo
+      enddo
+   ENDIF
+
    do j=j_start,j_end
    do k=kts,ktf
    do i=i_start,i_end
@@ -2021,29 +2044,13 @@ SUBROUTINE smag2d_km( config_flags,xkmh,xkmv,BN2,xkhh,xkhv,                    &
       DO j = j_start, j_end
       DO k = kts, ktf
       DO i = i_start, i_end
-
-         c_s_stoch = config_flags%c_s
-         IF (BN2(i,k,j) .lt. 5.E-5) c_s_stoch = 0.5*config_flags%c_s
-         IF (BN2(i,k,j) .gt. 5.E-4) c_s_stoch = 0.05*config_flags%c_s
-
-!..Add in Stochastic Parameter Perturbation to the c_s value.
-!.. Namelist setting for stddev should be about 0.25 with cutoff about 2.5
-
-         if (rand_perturb .ne. 0 .and. config_flags%rand_pert_vertstruc .ne. 0) then
-            c_s_stoch = c_s_stoch * MAX(0.01, (1.0 + rand_pert(i,k,j)))
-         elseif (rand_perturb .ne. 0 .and. config_flags%rand_pert_vertstruc .eq. 0) then
-            c_s_stoch = c_s_stoch * MAX(0.01, (1.0 + rand_pert(i,1,j)))
-         endif
-
          mlen_h=sqrt(dx/msftx(i,j) * dy/msfty(i,j))
          tmp=sqrt(def2(i,k,j))
 !        xkmh(i,k,j)=max(c_s*c_s*mlen_h*mlen_h*tmp, 1.0E-6*mlen_h*mlen_h )
-         xkmh(i,k,j)=c_s*c_s*mlen_h*mlen_h*tmp
+         xkmh(i,k,j)=c_s_stoch(i,j)*c_s_stoch(i,j)*mlen_h*mlen_h*tmp
          xkmh(i,k,j)=min(xkmh(i,k,j), 10.*mlen_h )
          xkmv(i,k,j)=xkmh(i,k,j)               ! v4.2 and later, this is used for hor. diff. of w
-!        xkhh(i,k,j)=xkmh(i,k,j)/pr
-         xkhh(i,k,j)=c_s_stoch*c_s_stoch*mlen_h*mlen_h*tmp / dt / pr
-         xkhh(i,k,j)=min(xkhh(i,k,j), mix_upper_bound * mlen_h * mlen_h / dt )
+         xkhh(i,k,j)=xkmh(i,k,j)/pr
          xkhv(i,k,j)=0.
          IF(config_flags%diff_opt .EQ. 2)THEN
 ! jd: reduce diffusion coefficient by slope factor (modified by JB August 2014)
