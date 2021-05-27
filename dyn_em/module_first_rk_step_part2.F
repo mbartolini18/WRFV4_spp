@@ -582,8 +582,7 @@ BENCH_START(calc_tke_tim)
                                  grid%mix_upper_bound,                                  &
                                  grid%msftx, grid%msfty,                                &
                                  grid%zx, grid%zy,                                      &
-                                 config_flags%rand_perturb, grid%num_stoch_levels,      & !G. Thompson
-                                 grid%rand_pert,                                        & !G. Thompson
+                                 config_flags%spp_pbl, grid%pattern_spp_pbl,            &
                                  grid%pblh, grid%dlk, grid%xkmv_meso,                   &  
                                  ids,ide, jds,jde, kds,kde,                             &
                                  ims,ime, jms,jme, kms,kme,                             &
