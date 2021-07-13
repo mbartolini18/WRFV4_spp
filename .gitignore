@@ -10,7 +10,7 @@
 # USE CAUTION WHEN ADDING WILDCARDS, as some builds use different filename   #
 # conventions than others                                                    #
 ##############################################################################
-#*.exe
+*.exe
 *.o
 *.mod
 *.a
