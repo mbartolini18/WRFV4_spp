@@ -218,6 +218,7 @@
       INTEGER, PARAMETER, PRIVATE:: ntb_r1 = 37
       INTEGER, PARAMETER, PRIVATE:: ntb_i1 = 55
       INTEGER, PARAMETER, PRIVATE:: ntb_t = 9
+      INTEGER, PARAMETER, PRIVATE:: ntb_spp = 9
       INTEGER, PRIVATE:: nic1, nic2, nii2, nii3, nir2, nir3, nis2, nig2, nig3
       INTEGER, PARAMETER, PRIVATE:: ntb_arc = 7
       INTEGER, PARAMETER, PRIVATE:: ntb_arw = 9
@@ -340,6 +341,22 @@
       REAL, DIMENSION(ntb_t), PARAMETER, PRIVATE:: &
       Tc = (/-0.01, -5., -10., -15., -20., -25., -30., -35., -40./)
 
+!..Lookup tables for snow M(d) and V(d) equation coefficients
+!.. used in SPP routine (namelist option: spp_mp = 16, etc)
+      REAL, DIMENSION(ntb_spp), PARAMETER, PRIVATE:: &
+      am_s_tbl = (/0.0022, 0.0052, 0.0123, 0.0291, 0.069, 0.1636, &
+                   0.388, 0.9201, 2.182/) !default = 0.069
+      REAL, DIMENSION(ntb_spp), PARAMETER, PRIVATE:: &
+      bm_s_tbl = (/1.4942, 1.6205, 1.7469, 1.8733, 2.0, 2.1268,   &
+                   2.2536, 2.3803, 2.5071/) !default = 2.0
+      REAL, DIMENSION(ntb_spp), PARAMETER, PRIVATE:: &
+      av_s_tbl = (/2.0, 11.5, 21.0, 30.5, 40.0, 49.5,             &
+                   59.0, 68.5, 78.0/) !default = 40.0
+      REAL, DIMENSION(ntb_spp), PARAMETER, PRIVATE:: &
+      bv_s_tbl = (/0.2218, 0.4134, 0.4794, 0.5202, 0.55, 0.5733,  &
+                   0.5925, 0.6089, 0.6231/) !default = 0.55
+
+
 !..Lookup tables for various accretion/collection terms.
 !.. ntb_x refers to the number of elements for rain, snow, graupel,
 !.. and temperature array indices.  Variables beginning with t-p/c/m/n
@@ -347,23 +364,23 @@
 !.. allocatable (2009Jun12, J. Michalakes).
       INTEGER, PARAMETER, PRIVATE:: R8SIZE = 8
       INTEGER, PARAMETER, PRIVATE:: R4SIZE = 4
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::             &
-                tcg_racg, tmr_racg, tcr_gacr, tmg_gacr,                 &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::            &
+                tcg_racg, tmr_racg, tcr_gacr, tmg_gacr,                &
                 tnr_racg, tnr_gacr
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::             &
-                tcs_racs1, tmr_racs1, tcs_racs2, tmr_racs2,             &
-                tcr_sacr1, tms_sacr1, tcr_sacr2, tms_sacr2,             &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:,:)::          &
+                tcs_racs1, tmr_racs1, tcs_racs2, tmr_racs2,            &
+                tcr_sacr1, tms_sacr1, tcr_sacr2, tms_sacr2,            &
                 tnr_racs1, tnr_racs2, tnr_sacr1, tnr_sacr2
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::             &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::            &
                 tpi_qcfz, tni_qcfz
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::             &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:,:)::            &
                 tpi_qrfz, tpg_qrfz, tni_qrfz, tnr_qrfz
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:)::                 &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:)::                &
                 tps_iaus, tni_iaus, tpi_ide
       REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:):: t_Efrw
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:):: t_Efsw
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:):: t_Efsw
       REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:):: tnr_rev
-      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:)::               &
+      REAL (KIND=R8SIZE), ALLOCATABLE, DIMENSION(:,:,:)::              &
                 tpc_wev, tnc_wev
       REAL (KIND=R4SIZE), ALLOCATABLE, DIMENSION(:,:,:,:,:):: tnccn_act
 
@@ -385,7 +402,15 @@
       REAL:: t1_qr_ev, t2_qr_ev
       REAL:: t1_qs_sd, t2_qs_sd, t1_qg_sd, t2_qg_sd
       REAL:: t1_qs_me, t2_qs_me, t1_qg_me, t2_qg_me
-
+ 
+!..redefine values of snow M(d) and V(d) coefficients and
+!dependent variables if SPP-MP is active, using new
+!variable names with suffix "_spp" everywhere
+!instead of modifying original PARAMETER vars
+!if spp_mp = 0, values remain consistent with original vars
+      REAL, PRIVATE:: oams_spp, obms_spp, ocms_spp
+!am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
+!bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp, &
 !+---+
 !+---+-----------------------------------------------------------------+
 !..END DECLARATIONS
@@ -418,7 +443,7 @@
       CHARACTER*256:: mp_debug
 
 
-      INTEGER:: i, j, k, l, m, n
+      INTEGER:: i, j, k, l, m, n, s
       REAL:: h_01, airmass, niIN3, niCCN3, max_test
       LOGICAL:: micro_init, has_CCN, has_IN
 
@@ -530,18 +555,18 @@
       if (.NOT. ALLOCATED(tnr_racg)) ALLOCATE(tnr_racg(ntb_g1,ntb_g,ntb_r1,ntb_r))
       if (.NOT. ALLOCATED(tnr_gacr)) ALLOCATE(tnr_gacr(ntb_g1,ntb_g,ntb_r1,ntb_r))
 
-      if (.NOT. ALLOCATED(tcs_racs1)) ALLOCATE(tcs_racs1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tmr_racs1)) ALLOCATE(tmr_racs1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tcs_racs2)) ALLOCATE(tcs_racs2(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tmr_racs2)) ALLOCATE(tmr_racs2(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tcr_sacr1)) ALLOCATE(tcr_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tms_sacr1)) ALLOCATE(tms_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tcr_sacr2)) ALLOCATE(tcr_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tms_sacr2)) ALLOCATE(tms_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tnr_racs1)) ALLOCATE(tnr_racs1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tnr_racs2)) ALLOCATE(tnr_racs2(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tnr_sacr1)) ALLOCATE(tnr_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r))
-      if (.NOT. ALLOCATED(tnr_sacr2)) ALLOCATE(tnr_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r))
+      if (.NOT. ALLOCATED(tcs_racs1)) ALLOCATE(tcs_racs1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tmr_racs1)) ALLOCATE(tmr_racs1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tcs_racs2)) ALLOCATE(tcs_racs2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tmr_racs2)) ALLOCATE(tmr_racs2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tcr_sacr1)) ALLOCATE(tcr_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tms_sacr1)) ALLOCATE(tms_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tcr_sacr2)) ALLOCATE(tcr_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tms_sacr2)) ALLOCATE(tms_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tnr_racs1)) ALLOCATE(tnr_racs1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tnr_racs2)) ALLOCATE(tnr_racs2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tnr_sacr1)) ALLOCATE(tnr_sacr1(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
+      if (.NOT. ALLOCATED(tnr_sacr2)) ALLOCATE(tnr_sacr2(ntb_s,ntb_t,ntb_r1,ntb_r,ntb_spp))
 
       if (.NOT. ALLOCATED(tpi_qcfz)) ALLOCATE(tpi_qcfz(ntb_c,nbc,45,ntb_IN))
       if (.NOT. ALLOCATED(tni_qcfz)) ALLOCATE(tni_qcfz(ntb_c,nbc,45,ntb_IN))
@@ -556,7 +581,7 @@
       if (.NOT. ALLOCATED(tpi_ide)) ALLOCATE(tpi_ide(ntb_i,ntb_i1))
 
       if (.NOT. ALLOCATED(t_Efrw)) ALLOCATE(t_Efrw(nbr,nbc))
-      if (.NOT. ALLOCATED(t_Efsw)) ALLOCATE(t_Efsw(nbs,nbc))
+      if (.NOT. ALLOCATED(t_Efsw)) ALLOCATE(t_Efsw(nbs,nbc,ntb_spp))
 
       if (.NOT. ALLOCATED(tnr_rev)) ALLOCATE(tnr_rev(nbr, ntb_r1, ntb_r))
       if (.NOT. ALLOCATED(tpc_wev)) ALLOCATE(tpc_wev(nbc,ntb_c,nbc))
@@ -824,22 +849,24 @@
          enddo
       enddo
 
-      do m = 1, ntb_r
-         do k = 1, ntb_r1
-            do j = 1, ntb_t
-               do i = 1, ntb_s
-                  tcs_racs1(i,j,k,m) = 0.0d0
-                  tmr_racs1(i,j,k,m) = 0.0d0
-                  tcs_racs2(i,j,k,m) = 0.0d0
-                  tmr_racs2(i,j,k,m) = 0.0d0
-                  tcr_sacr1(i,j,k,m) = 0.0d0
-                  tms_sacr1(i,j,k,m) = 0.0d0
-                  tcr_sacr2(i,j,k,m) = 0.0d0
-                  tms_sacr2(i,j,k,m) = 0.0d0
-                  tnr_racs1(i,j,k,m) = 0.0d0
-                  tnr_racs2(i,j,k,m) = 0.0d0
-                  tnr_sacr1(i,j,k,m) = 0.0d0
-                  tnr_sacr2(i,j,k,m) = 0.0d0
+      do s = 1, ntb_spp
+         do m = 1, ntb_r
+            do k = 1, ntb_r1
+               do j = 1, ntb_t
+                  do i = 1, ntb_s
+                     tcs_racs1(i,j,k,m,s) = 0.0d0
+                     tmr_racs1(i,j,k,m,s) = 0.0d0
+                     tcs_racs2(i,j,k,m,s) = 0.0d0
+                     tmr_racs2(i,j,k,m,s) = 0.0d0
+                     tcr_sacr1(i,j,k,m,s) = 0.0d0
+                     tms_sacr1(i,j,k,m,s) = 0.0d0
+                     tcr_sacr2(i,j,k,m,s) = 0.0d0
+                     tms_sacr2(i,j,k,m,s) = 0.0d0
+                     tnr_racs1(i,j,k,m,s) = 0.0d0
+                     tnr_racs2(i,j,k,m,s) = 0.0d0
+                     tnr_sacr1(i,j,k,m,s) = 0.0d0
+                     tnr_sacr2(i,j,k,m,s) = 0.0d0
+                  enddo
                enddo
             enddo
          enddo
@@ -876,8 +903,13 @@
          do i = 1, nbr
             t_Efrw(i,j) = 0.0
          enddo
-         do i = 1, nbs
-            t_Efsw(i,j) = 0.0
+      enddo
+
+      do s = 1, ntb_spp
+         do j = 1, nbc
+            do i = 1, nbs
+               t_Efsw(i,j,s) = 0.0
+            enddo
          enddo
       enddo
 
@@ -1044,8 +1076,8 @@
       INTEGER, INTENT(IN):: itimestep
 
       INTEGER, INTENT(IN) :: rand_perturb_on, kme_stoch
-      REAL, DIMENSION(ims:ime,kms:kme_stoch,jms:jme), INTENT(IN):: &
-                          rand_pert
+      REAL, DIMENSION(ims:ime,kms:kme_stoch,jms:jme), OPTIONAL, &
+                          INTENT(IN):: rand_pert
 
 !..Local variables
       REAL, DIMENSION(kts:kte):: &
@@ -1072,7 +1104,7 @@
       REAL:: qc_max, qr_max, qs_max, qi_max, qg_max, ni_max, nr_max
       REAL:: nwfa1
       INTEGER:: i, j, k, m
-      REAL:: rand1, rand2, rand3, rand4, min_rand
+      REAL:: rand1, rand2, rand3, rand4, rand5, min_rand
       INTEGER:: imax_qc,imax_qr,imax_qi,imax_qs,imax_qg,imax_ni,imax_nr
       INTEGER:: jmax_qc,jmax_qr,jmax_qi,jmax_qs,jmax_qg,jmax_ni,jmax_nr
       INTEGER:: kmax_qc,kmax_qr,kmax_qi,kmax_qs,kmax_qg,kmax_ni,kmax_nr
@@ -1163,11 +1195,13 @@
 !  scalar rand1, rand2, ...
 !.. variables as needed to perturb different pieces of microphysics.
 !  gthompsn  21Mar2018
+!  mbartolini Oct2021 - added spp_mp options 8 and 16
 ! Setting spp_mp to 1 gives graupel Y-intercept pertubations (2^0)
 !                   2 gives cloud water distribution gamma shape
 !                   parameter perturbations (2^1)
 !                   4 gives CCN and IN activation perturbations (2^2)
-!                   8 gives TBD (2^3)
+!                   8 gives snow capacitance perturbations (2^3)
+!                  16 gives snow M(d) and V(d) coeff perturbations (2^4)
 !                   3 gives both 1+2
 !                   5 gives both 1+4
 !                   9 gives both 1+8
@@ -1178,7 +1212,8 @@
 !                  11 gives 1+2+8
 !                  13 gives 1+4+8
 !                  14 gives 2+4+8
-!                  15 gives all 1+2+4+8
+!                  15 gives all of first four perts 1+2+4+8
+!                  31 gives all of first five perts 1+2+4+8+16
 ! For now (10May2019), standard deviation should be only 0.5 and cut-off
 ! at 2.0 (4.0*stddev) in order to constrain the various perturbations 
 ! from being too extreme.
@@ -1187,14 +1222,17 @@
          rand2 = 0.0
          rand3 = 0.0
          rand4 = 0.0
+         rand5 = 0.0
          if (rand_perturb_on .ne. 0) then
             if (MOD(rand_perturb_on,2) .ne. 0) rand1 = rand_pert(i,1,j)
             m = RSHIFT(ABS(rand_perturb_on),1)
             if (MOD(m,2) .ne. 0) rand2 = rand_pert(i,1,j)*2.
             m = RSHIFT(ABS(rand_perturb_on),2)
             if (MOD(m,2) .ne. 0) rand3 = 0.25*(rand_pert(i,1,j)+ABS(min_rand))
-!-GT        m = RSHIFT(ABS(rand_perturb_on),3)
-!-GT        if (MOD(m,2) .ne. 0) rand4 = 0.25*rand_pert(i,1,j)
+            m = RSHIFT(ABS(rand_perturb_on),3)
+            if (MOD(m,2) .ne. 0) rand4 = 0.2*rand_pert(i,1,j)
+            m = RSHIFT(ABS(rand_perturb_on),4)
+            if (MOD(m,2) .ne. 0) rand5 = rand_pert(i,1,j)
          endif
 !+---+-----------------------------------------------------------------+
 
@@ -1257,7 +1295,8 @@
                       prr_sml1d, prg_rci1d, prg_ihm1d, &
                       prr_rcg1d, prr_gml1d, prg_rcs1d, &
                       prg_scw1d, prg_rfz1d, prg_gde1d, &
-                      rand1, rand2, rand3, rand4, &
+                      rand1, rand2, rand3, rand4, rand5, &
+                      rand_perturb_on, &
                       kts, kte, dt, i, j)
 
          pcp_ra(i,j) = pptrain
@@ -1532,20 +1571,22 @@
                           prr_sml, prg_rci, prg_ihm, &
                           prr_rcg, prr_gml, prg_rcs, &
                           prg_scw, prg_rfz, prg_gde, &
-                          rand1, rand2, rand3, rand4, &
+                          rand1, rand2, rand3, rand4, rand5, &
+                          rand_perturb_on, &
                           kts, kte, dt, ii, jj)
 
       implicit none
 
 !..Sub arguments
       INTEGER, INTENT(IN):: kts, kte, ii, jj
+      INTEGER, INTENT(IN):: rand_perturb_on
       REAL, DIMENSION(kts:kte), INTENT(INOUT):: &
                           qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, ni1d, &
                           nr1d, nc1d, nwfa1d, nifa1d, t1d
       REAL, DIMENSION(kts:kte), INTENT(IN):: p1d, w1d, dzq
       REAL, INTENT(INOUT):: pptrain, pptsnow, pptgraul, pptice
       REAL, INTENT(IN):: dt
-      REAL, INTENT(IN):: rand1, rand2, rand3, rand4
+      REAL, INTENT(IN):: rand1, rand2, rand3, rand4, rand5
 
       DOUBLE PRECISION, DIMENSION(kts:kte), INTENT(INOUT):: &
                           prw_vcd, pri_inu, pri_ihm, &
@@ -1629,17 +1670,91 @@
       REAL:: Ef_ra, Ef_sa, Ef_ga
       REAL:: dtsave, odts, odt, odzq, hgt_agl, SR
       REAL:: xslw1, ygra1, zans1, eva_factor
-      INTEGER:: i, k, k2, n, nn, nstep, k_0, kbot, IT, iexfrq
+      INTEGER:: i, k, k2, n, nn, nstep, k_0, kbot, IT, iexfrq, mm
       INTEGER, DIMENSION(5):: ksed1
       INTEGER:: nir, nis, nig, nii, nic, niin
       INTEGER:: idx_tc, idx_t, idx_s, idx_g1, idx_g, idx_r1, idx_r,     &
-                idx_i1, idx_i, idx_c, idx, idx_d, idx_n, idx_in
+                idx_i1, idx_i, idx_c, idx, idx_d, idx_n, idx_in, idx_spp
 
       LOGICAL:: melti, no_micro
       LOGICAL, DIMENSION(kts:kte):: L_qc, L_qi, L_qr, L_qs, L_qg
       LOGICAL:: debug_flag
       CHARACTER*256:: mp_debug
       INTEGER:: nu_c
+
+
+      !..redefine values of snow M(d) and V(d) coefficients and
+      !dependent variables if SPP-MP is active, using new
+      !variable names with suffix "_spp" everywhere
+      !instead of modifying original PARAMETER vars
+      !if spp_mp = 0, values remain consistent with original vars
+      REAL:: am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
+             bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp
+             !oams_spp, obms_spp, ocms_spp
+
+
+      mm = RSHIFT(ABS(rand_perturb_on),4) 
+      !if rand5 being perturbed, modify coeff values
+      if (MOD(mm,2) .ne. 0) then
+        !av_s pert scaled so it is 30x larger than am_s
+        am_s_spp = 10.**(LOG10(am_s)+rand5) !log transform
+        am_s_spp = MAX(am_s_spp, 0.001) !make sure perts > 0
+        av_s_spp = av_s+(30.*rand5)
+        av_s_spp = MAX(av_s_spp, 0.001)
+        oams_spp = 1./(am_s_spp)
+        t1_qs_qc_spp = PI*.25*av_s_spp !snow coll. cloud water
+        t1_qs_qi_spp = PI*.25*av_s_spp !snow coll. cloud ice
+        t2_qs_sd_spp = 0.28*Sc3*SQRT(av_s_spp) !sub/dep of snow
+        t2_qs_me_spp = PI*4.*C_sqrd*olfus &
+                     * 0.28*Sc3*SQRT(av_s_spp) !melting of snow
+
+        !Calculate bm_s and bv_s values based on polynomial fit to
+        !a-coefficients, curve designed to pass through default TE14
+        !values
+        bm_s_spp = 2.39254 + 0.33802*LOG10(am_s_spp) 
+        bv_s_spp = 0.14587 + 0.25222*LOG10(av_s_spp)
+
+        !Recalculate shortcut coefficients depending on bm_s, bv_s
+        cse(1) = bm_s_spp + 1.
+        cse(2) = bm_s_spp + 2.
+        cse(3) = bm_s_spp*2.
+        cse(4) = bm_s_spp + bv_s_spp + 1.
+        cse(5) = bm_s_spp*2. + bv_s_spp + 1.
+        cse(6) = bm_s_spp*2. + 1.
+        cse(7) = bm_s_spp + mu_s + 1.
+        cse(8) = bm_s_spp + mu_s + 2.
+        cse(9) = bm_s_spp + mu_s + 3.
+        cse(10) = bm_s_spp + mu_s + bv_s_spp + 1.
+        cse(11) = bm_s_spp*2. + mu_s + bv_s_spp + 1.
+        cse(12) = bm_s_spp*2. + mu_s + 1.
+        cse(13) = bv_s_spp + 2.
+        cse(14) = bm_s_spp + bv_s_spp
+        cse(15) = mu_s + 1.
+        cse(16) = 1.0 + (1.0 + bv_s_spp)/2.
+        cse(17) = cse(16) + mu_s + 1.
+        cse(18) = bv_s_spp + mu_s + 3.
+        do n = 1, 18
+           csg(n) = WGAMMA(cse(n))
+        enddo
+        obms_spp = 1./bm_s_spp
+        ocms_spp = oams_spp**obms_spp
+
+      else
+        am_s_spp = am_s
+        bm_s_spp = bm_s
+        av_s_spp = av_s
+        bv_s_spp = bv_s
+        oams_spp = oams
+        obms_spp = obms
+        ocms_spp = ocms
+        t1_qs_qc_spp = t1_qs_qc
+        t1_qs_qi_spp = t1_qs_qi
+        t2_qs_sd_spp = t2_qs_sd
+        t2_qs_me_spp = t2_qs_me
+
+      endif
+      !TODO: change all bm_s, bv_s, obms, and ocms references to "_spp"
+      !below this point, for consistency with am_s_spp naming convention
 
 !+---+
 
@@ -1945,24 +2060,24 @@
       do k = kts, kte
          if (.not. L_qs(k)) CYCLE
          tc0 = MIN(-0.1, temp(k)-273.15)
-         smob(k) = rs(k)*oams
+         smob(k) = rs(k)*oams_spp
 
 !..All other moments based on reference, 2nd moment.  If bm_s.ne.2,
 !.. then we must compute actual 2nd moment and use as reference.
-         if (bm_s.gt.(2.0-1.e-3) .and. bm_s.lt.(2.0+1.e-3)) then
+         if (bm_s_spp.gt.(2.0-1.e-3) .and. bm_s_spp.lt.(2.0+1.e-3)) then
             smo2(k) = smob(k)
          else
-            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s &
-               + sa(4)*tc0*bm_s + sa(5)*tc0*tc0 &
-               + sa(6)*bm_s*bm_s + sa(7)*tc0*tc0*bm_s &
-               + sa(8)*tc0*bm_s*bm_s + sa(9)*tc0*tc0*tc0 &
-               + sa(10)*bm_s*bm_s*bm_s
+            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s_spp &
+               + sa(4)*tc0*bm_s_spp + sa(5)*tc0*tc0 &
+               + sa(6)*bm_s_spp*bm_s_spp + sa(7)*tc0*tc0*bm_s_spp &
+               + sa(8)*tc0*bm_s_spp*bm_s_spp + sa(9)*tc0*tc0*tc0 &
+               + sa(10)*bm_s_spp*bm_s_spp*bm_s_spp
             a_ = 10.0**loga_
-            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s &
-               + sb(4)*tc0*bm_s + sb(5)*tc0*tc0 &
-               + sb(6)*bm_s*bm_s + sb(7)*tc0*tc0*bm_s &
-               + sb(8)*tc0*bm_s*bm_s + sb(9)*tc0*tc0*tc0 &
-               + sb(10)*bm_s*bm_s*bm_s
+            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s_spp &
+               + sb(4)*tc0*bm_s_spp + sb(5)*tc0*tc0 &
+               + sb(6)*bm_s_spp*bm_s_spp + sb(7)*tc0*tc0*bm_s_spp &
+               + sb(8)*tc0*bm_s_spp*bm_s_spp + sb(9)*tc0*tc0*tc0 &
+               + sb(10)*bm_s_spp*bm_s_spp*bm_s_spp
             smo2(k) = (smob(k)/a_)**(1./b_)
          endif
 
@@ -2267,6 +2382,18 @@
           idx_g1 = ntb_g1
          endif
 
+!..Snow mass- and velocity-diameter coefficients index for lookup tables.
+!..Note: currently assuming single lookup index 
+!..for both M(d) and V(d) coeffs, might want to change later
+!..Having independent lookups would mean adding 
+!..another dimension to lookup table computations, 
+!..limited by compute time and lookup table file size
+
+         !coded for fixed-width bins of diameter 9.5
+         idx_spp = INT((av_s_spp+4.75-av_s_tbl(1))/9.5) + 1
+         idx_spp = MIN(MAX(1, idx_spp), ntb_spp)
+    
+
 !..Deposition/sublimation prefactor (from Srivastava & Coen 1992).
          otemp = 1./temp(k)
          rvs = rho(k)*qvsi(k)
@@ -2291,10 +2418,10 @@
           if (xDs .gt. D0s) then
            idx = 1 + INT(nbs*DLOG(xDs/Ds(1))/DLOG(Ds(nbs)/Ds(1)))
            idx = MIN(idx, nbs)
-           Ef_sw = t_Efsw(idx, INT(mvd_c(k)*1.E6))
-           prs_scw(k) = rhof(k)*t1_qs_qc*Ef_sw*rc(k)*smoe(k)
+           Ef_sw = t_Efsw(idx, INT(mvd_c(k)*1.E6), idx_spp)
+           prs_scw(k) = rhof(k)*t1_qs_qc_spp*Ef_sw*rc(k)*smoe(k)
            prs_scw(k) = MIN(DBLE(rc(k)*odts), prs_scw(k))
-           pnc_scw(k) = rhof(k)*t1_qs_qc*Ef_sw*nc(k)*smoe(k)                ! Qc2M
+           pnc_scw(k) = rhof(k)*t1_qs_qc_spp*Ef_sw*nc(k)*smoe(k)                ! Qc2M
            pnc_scw(k) = MIN(DBLE(nc(k)*odts), pnc_scw(k))
           endif
 
@@ -2323,11 +2450,11 @@
 !..Snow and graupel collecting aerosols, wet scavenging.
          if (rs(k) .gt. r_s(1)) then
           Ef_sa = Eff_aero(xDs,0.04E-6,visco(k),rho(k),temp(k),'s')
-          pna_sca(k) = rhof(k)*t1_qs_qc*Ef_sa*nwfa(k)*smoe(k)
+          pna_sca(k) = rhof(k)*t1_qs_qc_spp*Ef_sa*nwfa(k)*smoe(k)
           pna_sca(k) = MIN(DBLE(nwfa(k)*odts), pna_sca(k))
 
           Ef_sa = Eff_aero(xDs,0.8E-6,visco(k),rho(k),temp(k),'s')
-          pnd_scd(k) = rhof(k)*t1_qs_qc*Ef_sa*nifa(k)*smoe(k)
+          pnd_scd(k) = rhof(k)*t1_qs_qc_spp*Ef_sa*nifa(k)*smoe(k)
           pnd_scd(k) = MIN(DBLE(nifa(k)*odts), pnd_scd(k))
          endif
          if (rg(k) .gt. r_g(1)) then
@@ -2349,31 +2476,31 @@
          if (rr(k).ge. r_r(1)) then
           if (rs(k).ge. r_s(1)) then
            if (temp(k).lt.T_0) then
-            prr_rcs(k) = -(tmr_racs2(idx_s,idx_t,idx_r1,idx_r) &
-                           + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r) &
-                           + tmr_racs1(idx_s,idx_t,idx_r1,idx_r) &
-                           + tcr_sacr1(idx_s,idx_t,idx_r1,idx_r))
-            prs_rcs(k) = tmr_racs2(idx_s,idx_t,idx_r1,idx_r) &
-                         + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r) &
-                         - tcs_racs1(idx_s,idx_t,idx_r1,idx_r) &
-                         - tms_sacr1(idx_s,idx_t,idx_r1,idx_r)
-            prg_rcs(k) = tmr_racs1(idx_s,idx_t,idx_r1,idx_r) &
-                         + tcr_sacr1(idx_s,idx_t,idx_r1,idx_r) &
-                         + tcs_racs1(idx_s,idx_t,idx_r1,idx_r) &
-                         + tms_sacr1(idx_s,idx_t,idx_r1,idx_r)
+            prr_rcs(k) = -(tmr_racs2(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                           + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                           + tmr_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                           + tcr_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp))
+            prs_rcs(k) = tmr_racs2(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         - tcs_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         - tms_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp)
+            prg_rcs(k) = tmr_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         + tcr_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         + tcs_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp) &
+                         + tms_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp)
             prr_rcs(k) = MAX(DBLE(-rr(k)*odts), prr_rcs(k))
             prs_rcs(k) = MAX(DBLE(-rs(k)*odts), prs_rcs(k))
             prg_rcs(k) = MIN(DBLE((rr(k)+rs(k))*odts), prg_rcs(k))
-            pnr_rcs(k) = tnr_racs1(idx_s,idx_t,idx_r1,idx_r)            &   ! RAIN2M
-                         + tnr_racs2(idx_s,idx_t,idx_r1,idx_r)          &
-                         + tnr_sacr1(idx_s,idx_t,idx_r1,idx_r)          &
-                         + tnr_sacr2(idx_s,idx_t,idx_r1,idx_r)
+            pnr_rcs(k) = tnr_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp)            &   ! RAIN2M
+                         + tnr_racs2(idx_s,idx_t,idx_r1,idx_r,idx_spp)          &
+                         + tnr_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp)          &
+                         + tnr_sacr2(idx_s,idx_t,idx_r1,idx_r,idx_spp)
             pnr_rcs(k) = MIN(DBLE(nr(k)*odts), pnr_rcs(k))
            else
-            prs_rcs(k) = -tcs_racs1(idx_s,idx_t,idx_r1,idx_r)           &
-                         - tms_sacr1(idx_s,idx_t,idx_r1,idx_r)          &
-                         + tmr_racs2(idx_s,idx_t,idx_r1,idx_r)          &
-                         + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r)
+            prs_rcs(k) = -tcs_racs1(idx_s,idx_t,idx_r1,idx_r,idx_spp)           &
+                         - tms_sacr1(idx_s,idx_t,idx_r1,idx_r,idx_spp)          &
+                         + tmr_racs2(idx_s,idx_t,idx_r1,idx_r,idx_spp)          &
+                         + tcr_sacr2(idx_s,idx_t,idx_r1,idx_r,idx_spp)
             prs_rcs(k) = MAX(DBLE(-rs(k)*odts), prs_rcs(k))
             prr_rcs(k) = -prs_rcs(k)
            endif
@@ -2535,11 +2662,12 @@
 !..Deposition/sublimation of snow/graupel follows Srivastava & Coen
 !.. (1992).
           if (L_qs(k)) then
-           C_snow = C_sqrd + (tempc+1.5)*(C_cube-C_sqrd)/(-30.+1.5)
+           C_snow = C_sqrd + (tempc+1.5)*(C_cube-C_sqrd)/(-30.+1.5) &
+                  + rand4
            C_snow = MAX(C_sqrd, MIN(C_snow, C_cube))
            prs_sde(k) = C_snow*t1_subl*diffu(k)*ssati(k)*rvs &
                         * (t1_qs_sd*smo1(k) &
-                         + t2_qs_sd*rhof2(k)*vsc2(k)*smof(k))
+                         + t2_qs_sd_spp*rhof2(k)*vsc2(k)*smof(k))
            if (prs_sde(k).lt. 0.) then
             prs_sde(k) = MAX(DBLE(-rs(k)*odts), prs_sde(k), DBLE(rate_max))
            else
@@ -2566,7 +2694,7 @@
            xmi = am_i*xDi**bm_i
            oxmi = 1./xmi
            if (rs(k).ge. r_s(1)) then
-            prs_sci(k) = t1_qs_qi*rhof(k)*Ef_si*ri(k)*smoe(k)
+            prs_sci(k) = t1_qs_qi_spp*rhof(k)*Ef_si*ri(k)*smoe(k)
             pni_sci(k) = prs_sci(k) * oxmi
            endif
 
@@ -2619,10 +2747,11 @@
 !..Melt snow and graupel and enhance from collisions with liquid.
 !.. We also need to sublimate snow and graupel if subsaturated.
           if (L_qs(k)) then
-           prr_sml(k) = (tempc*tcond(k)-lvap0*diffu(k)*delQvs(k))       &
-                      * (t1_qs_me*smo1(k) + t2_qs_me*rhof2(k)*vsc2(k)*smof(k))
+           prr_sml(k) = (tempc*tcond(k)-lvap0*diffu(k)*delQvs(k))      &
+                      * (t1_qs_me*smo1(k) + t2_qs_me_spp*rhof2(k)      &
+                      *vsc2(k)*smof(k))
            if (prr_sml(k) .gt. 0.) then
-              prr_sml(k) = prr_sml(k) + 4218.*olfus*tempc               &
+              prr_sml(k) = prr_sml(k) + 4218.*olfus*tempc              &
                                       * (prr_rcs(k)+prs_scw(k))
            endif
            prr_sml(k) = MIN(DBLE(rs(k)*odts), MAX(0.D0, prr_sml(k)))
@@ -3043,24 +3172,24 @@
       do k = kts, kte
          if (.not. L_qs(k)) CYCLE
          tc0 = MIN(-0.1, temp(k)-273.15)
-         smob(k) = rs(k)*oams
+         smob(k) = rs(k)*oams_spp
 
 !..All other moments based on reference, 2nd moment.  If bm_s.ne.2,
 !.. then we must compute actual 2nd moment and use as reference.
-         if (bm_s.gt.(2.0-1.e-3) .and. bm_s.lt.(2.0+1.e-3)) then
+         if (bm_s_spp.gt.(2.0-1.e-3) .and. bm_s_spp.lt.(2.0+1.e-3)) then
             smo2(k) = smob(k)
          else
-            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s &
-               + sa(4)*tc0*bm_s + sa(5)*tc0*tc0 &
-               + sa(6)*bm_s*bm_s + sa(7)*tc0*tc0*bm_s &
-               + sa(8)*tc0*bm_s*bm_s + sa(9)*tc0*tc0*tc0 &
-               + sa(10)*bm_s*bm_s*bm_s
+            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s_spp &
+               + sa(4)*tc0*bm_s_spp + sa(5)*tc0*tc0 &
+               + sa(6)*bm_s_spp*bm_s_spp + sa(7)*tc0*tc0*bm_s_spp &
+               + sa(8)*tc0*bm_s_spp*bm_s_spp + sa(9)*tc0*tc0*tc0 &
+               + sa(10)*bm_s_spp*bm_s_spp*bm_s_spp
             a_ = 10.0**loga_
-            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s &
-               + sb(4)*tc0*bm_s + sb(5)*tc0*tc0 &
-               + sb(6)*bm_s*bm_s + sb(7)*tc0*tc0*bm_s &
-               + sb(8)*tc0*bm_s*bm_s + sb(9)*tc0*tc0*tc0 &
-               + sb(10)*bm_s*bm_s*bm_s
+            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s_spp &
+               + sb(4)*tc0*bm_s_spp + sb(5)*tc0*tc0 &
+               + sb(6)*bm_s_spp*bm_s_spp + sb(7)*tc0*tc0*bm_s_spp &
+               + sb(8)*tc0*bm_s_spp*bm_s_spp + sb(9)*tc0*tc0*tc0 &
+               + sb(10)*bm_s_spp*bm_s_spp*bm_s_spp
             smo2(k) = (smob(k)/a_)**(1./b_)
          endif
 
@@ -3447,7 +3576,7 @@
            ils2 = 1./(Mrat*Lam1)
            t3_vts = Kap0*csg(1)*ils1**cse(1)
            t4_vts = Kap1*Mrat**mu_s*csg(7)*ils2**cse(7)
-           vts = rhof(k)*av_s * (t1_vts+t2_vts)/(t3_vts+t4_vts)
+           vts = rhof(k)*av_s_spp * (t1_vts+t2_vts)/(t3_vts+t4_vts)
            if (temp(k).gt. (T_0+0.1)) then
             SR = rs(k)/(rs(k)+rr(k))
             vtsk(k) = vts*SR + (1.-SR)*vtrk(k)
@@ -3940,10 +4069,12 @@
       implicit none
 
 !..Local variables
-      INTEGER:: i, j, k, m, n, n2
+      INTEGER:: i, j, k, m, n, n2, s, s2
       INTEGER:: km, km_s, km_e
-      DOUBLE PRECISION, DIMENSION(nbr):: vr, D1, N_r
-      DOUBLE PRECISION, DIMENSION(nbs):: vs, N_s
+      DOUBLE PRECISION, DIMENSION(nbr):: vr, N_r
+      DOUBLE PRECISION, DIMENSION(nbs):: N_s
+      DOUBLE PRECISION, DIMENSION(nbr, ntb_spp):: D1
+      DOUBLE PRECISION, DIMENSION(nbs, ntb_spp):: vs
       DOUBLE PRECISION:: loga_, a_, b_, second, M0, M2, M3, Mrat, oM3
       DOUBLE PRECISION:: N0_r, lam_exp, lamr, slam1, slam2
       DOUBLE PRECISION:: dvs, dvr, masss, massr
@@ -3961,10 +4092,10 @@
 
       good = 0
       IF ( wrf_dm_on_monitor() ) THEN
-        INQUIRE(FILE="qr_acr_qsV2.dat",EXIST=lexist)
+        INQUIRE(FILE="qr_acr_qsV2_spp.dat",EXIST=lexist)
         IF ( lexist ) THEN
-          CALL wrf_message("ThompMP: read qr_acr_qsV2.dat instead of computing")
-          OPEN(63,file="qr_acr_qsV2.dat",form="unformatted",err=1234)
+          CALL wrf_message("ThompMP: read qr_acr_qsV2_spp.dat instead of computing")
+          OPEN(63,file="qr_acr_qsV2_spp.dat",form="unformatted",err=1234)
           READ(63,err=1234)tcs_racs1
           READ(63,err=1234)tmr_racs1
           READ(63,err=1234)tcs_racs2
@@ -3983,12 +4114,12 @@
             INQUIRE(63,opened=lopen)
             IF (lopen) THEN
               IF( force_read_thompson ) THEN
-                CALL wrf_error_fatal("Error reading qr_acr_qsV2.dat. Aborting because force_read_thompson is .true.")
+                CALL wrf_error_fatal("Error reading qr_acr_qsV2_spp.dat. Aborting because force_read_thompson is .true.")
               ENDIF
               CLOSE(63)
             ELSE
               IF( force_read_thompson ) THEN
-                CALL wrf_error_fatal("Error opening qr_acr_qsV2.dat. Aborting because force_read_thompson is .true.")
+                CALL wrf_error_fatal("Error opening qr_acr_qsV2_spp.dat. Aborting because force_read_thompson is .true.")
               ENDIF
             ENDIF
           ELSE
@@ -3999,201 +4130,234 @@
           ENDIF
         ELSE
           IF( force_read_thompson ) THEN
-            CALL wrf_error_fatal("Non-existent qr_acr_qsV2.dat. Aborting because force_read_thompson is .true.")
+            CALL wrf_error_fatal("Non-existent qr_acr_qsV2_spp.dat. Aborting because force_read_thompson is .true.")
           ENDIF
         ENDIF
       ENDIF
-#if defined(DM_PARALLEL) && !defined(STUBMPI)
-      CALL wrf_dm_bcast_integer(good,1)
-#endif
+
+      !DM disabled -- need to restore
+!#if defined(DM_PARALLEL) && !defined(STUBMPI)
+!      CALL wrf_dm_bcast_integer(good,1)
+!#endif
 
       IF ( good .EQ. 1 ) THEN
-#if defined(DM_PARALLEL) && !defined(STUBMPI)
-        CALL wrf_dm_bcast_double(tcs_racs1,SIZE(tcs_racs1))
-        CALL wrf_dm_bcast_double(tmr_racs1,SIZE(tmr_racs1))
-        CALL wrf_dm_bcast_double(tcs_racs2,SIZE(tcs_racs2))
-        CALL wrf_dm_bcast_double(tmr_racs2,SIZE(tmr_racs2))
-        CALL wrf_dm_bcast_double(tcr_sacr1,SIZE(tcr_sacr1))
-        CALL wrf_dm_bcast_double(tms_sacr1,SIZE(tms_sacr1))
-        CALL wrf_dm_bcast_double(tcr_sacr2,SIZE(tcr_sacr2))
-        CALL wrf_dm_bcast_double(tms_sacr2,SIZE(tms_sacr2))
-        CALL wrf_dm_bcast_double(tnr_racs1,SIZE(tnr_racs1))
-        CALL wrf_dm_bcast_double(tnr_racs2,SIZE(tnr_racs2))
-        CALL wrf_dm_bcast_double(tnr_sacr1,SIZE(tnr_sacr1))
-        CALL wrf_dm_bcast_double(tnr_sacr2,SIZE(tnr_sacr2))
-#endif
+        !DM disabled -- need to restore
+!#if defined(DM_PARALLEL) && !defined(STUBMPI)
+!        CALL wrf_dm_bcast_double(tcs_racs1,SIZE(tcs_racs1))
+!        CALL wrf_dm_bcast_double(tmr_racs1,SIZE(tmr_racs1))
+!        CALL wrf_dm_bcast_double(tcs_racs2,SIZE(tcs_racs2))
+!        CALL wrf_dm_bcast_double(tmr_racs2,SIZE(tmr_racs2))
+!        CALL wrf_dm_bcast_double(tcr_sacr1,SIZE(tcr_sacr1))
+!        CALL wrf_dm_bcast_double(tms_sacr1,SIZE(tms_sacr1))
+!        CALL wrf_dm_bcast_double(tcr_sacr2,SIZE(tcr_sacr2))
+!        CALL wrf_dm_bcast_double(tms_sacr2,SIZE(tms_sacr2))
+!        CALL wrf_dm_bcast_double(tnr_racs1,SIZE(tnr_racs1))
+!        CALL wrf_dm_bcast_double(tnr_racs2,SIZE(tnr_racs2))
+!        CALL wrf_dm_bcast_double(tnr_sacr1,SIZE(tnr_sacr1))
+!        CALL wrf_dm_bcast_double(tnr_sacr2,SIZE(tnr_sacr2))
+!#endif
       ELSE
         CALL wrf_message("ThompMP: computing qr_acr_qs")
         do n2 = 1, nbr
 !        vr(n2) = av_r*Dr(n2)**bv_r * DEXP(-fv_r*Dr(n2))
-         vr(n2) = -0.1021 + 4.932E3*Dr(n2) - 0.9551E6*Dr(n2)*Dr(n2)     &
-              + 0.07934E9*Dr(n2)*Dr(n2)*Dr(n2)                          &
+         vr(n2) = -0.1021 + 4.932E3*Dr(n2) - 0.9551E6*Dr(n2)*Dr(n2)    &
+              + 0.07934E9*Dr(n2)*Dr(n2)*Dr(n2)                         &
               - 0.002362E12*Dr(n2)*Dr(n2)*Dr(n2)*Dr(n2)
-         D1(n2) = (vr(n2)/av_s)**(1./bv_s)
+         do s2 = 1, ntb_spp
+           D1(n2,s2) = (vr(n2)/av_s_tbl(s2))**(1./bv_s_tbl(s2))
+         enddo
         enddo
         do n = 1, nbs
-         vs(n) = 1.5*av_s*Ds(n)**bv_s * DEXP(-fv_s*Ds(n))
+         do s2 = 1, ntb_spp
+           vs(n,s2) = 1.5*av_s_tbl(s2)*Ds(n)**bv_s_tbl(s2) &
+                    * DEXP(-fv_s*Ds(n))
+         enddo 
         enddo
 
 !..Note values returned from wrf_dm_decomp1d are zero-based, add 1 for
 !.. fortran indices.  J. Michalakes, 2009Oct30.
 
-#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
-        CALL wrf_dm_decomp1d ( ntb_r*ntb_r1, km_s, km_e )
-#else
-        km_s = 0
-        km_e = ntb_r*ntb_r1 - 1
-#endif
+!DM disabled -- need to restore
+!#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
+!        CALL wrf_dm_decomp1d ( ntb_r*ntb_r1, km_s, km_e )
+!#else
+!        km_s = 0
+!        km_e = ntb_r*ntb_r1 - 1
+!#endif
 
-        do km = km_s, km_e
-         m = km / ntb_r1 + 1
-         k = mod( km , ntb_r1 ) + 1
+        do s = 1, ntb_spp !loop over SPP index
+         !DM disabled -- need to restore once km_s and km_e are assigned
+         !do km = km_s, km_e
+         ! m = km / ntb_r1 + 1
+         ! k = mod( km , ntb_r1 ) + 1
+         do m = 1, ntb_r !remove these two loops and use km loop above
+         do k = 1, ntb_r1
 
-         lam_exp = (N0r_exp(k)*am_r*crg(1)/r_r(m))**ore1
-         lamr = lam_exp * (crg(3)*org2*org1)**obmr
-         N0_r = N0r_exp(k)/(crg(2)*lam_exp) * lamr**cre(2)
-         do n2 = 1, nbr
-            N_r(n2) = N0_r*Dr(n2)**mu_r * DEXP(-lamr*Dr(n2))*dtr(n2)
-         enddo
+          lam_exp = (N0r_exp(k)*am_r*crg(1)/r_r(m))**ore1
+          lamr = lam_exp * (crg(3)*org2*org1)**obmr
+          N0_r = N0r_exp(k)/(crg(2)*lam_exp) * lamr**cre(2)
+          do n2 = 1, nbr
+             N_r(n2) = N0_r*Dr(n2)**mu_r * DEXP(-lamr*Dr(n2))*dtr(n2)
+          enddo
 
-         do j = 1, ntb_t
-            do i = 1, ntb_s
+          do j = 1, ntb_t
+             do i = 1, ntb_s
 
 !..From the bm_s moment, compute plus one moment.  If we are not
 !.. using bm_s=2, then we must transform to the pure 2nd moment
 !.. (variable called "second") and then to the bm_s+1 moment.
 
-               M2 = r_s(i)*oams *1.0d0
-               if (bm_s.gt.2.0-1.E-3 .and. bm_s.lt.2.0+1.E-3) then
-                  loga_ = sa(1) + sa(2)*Tc(j) + sa(3)*bm_s &
-                     + sa(4)*Tc(j)*bm_s + sa(5)*Tc(j)*Tc(j) &
-                     + sa(6)*bm_s*bm_s + sa(7)*Tc(j)*Tc(j)*bm_s &
-                     + sa(8)*Tc(j)*bm_s*bm_s + sa(9)*Tc(j)*Tc(j)*Tc(j) &
-                     + sa(10)*bm_s*bm_s*bm_s
-                  a_ = 10.0**loga_
-                  b_ = sb(1) + sb(2)*Tc(j) + sb(3)*bm_s &
-                     + sb(4)*Tc(j)*bm_s + sb(5)*Tc(j)*Tc(j) &
-                     + sb(6)*bm_s*bm_s + sb(7)*Tc(j)*Tc(j)*bm_s &
-                     + sb(8)*Tc(j)*bm_s*bm_s + sb(9)*Tc(j)*Tc(j)*Tc(j) &
-                     + sb(10)*bm_s*bm_s*bm_s
-                  second = (M2/a_)**(1./b_)
-               else
-                  second = M2
-               endif
+                M2 = r_s(i)*(1./am_s_tbl(s))*1.0d0
+                if (bm_s_tbl(s).gt.2.0-1.E-3 .and. bm_s_tbl(s).lt.2.0+1.E-3) then
+                   loga_ = sa(1) + sa(2)*Tc(j) + sa(3)*bm_s_tbl(s) &
+                      + sa(4)*Tc(j)*bm_s_tbl(s) + sa(5)*Tc(j)*Tc(j) &
+                      + sa(6)*bm_s_tbl(s)*bm_s_tbl(s) &
+                      + sa(7)*Tc(j)*Tc(j)*bm_s_tbl(s) &
+                      + sa(8)*Tc(j)*bm_s_tbl(s)*bm_s_tbl(s) &
+                      + sa(9)*Tc(j)*Tc(j)*Tc(j) &
+                      + sa(10)*bm_s_tbl(s)*bm_s_tbl(s)*bm_s_tbl(s)
+                   a_ = 10.0**loga_
+                   b_ = sb(1) + sb(2)*Tc(j) + sb(3)*bm_s_tbl(s) &
+                      + sb(4)*Tc(j)*bm_s_tbl(s) + sb(5)*Tc(j)*Tc(j) &
+                      + sb(6)*bm_s_tbl(s)*bm_s_tbl(s) &
+                      + sb(7)*Tc(j)*Tc(j)*bm_s_tbl(s) &
+                      + sb(8)*Tc(j)*bm_s_tbl(s)*bm_s_tbl(s) &
+                      + sb(9)*Tc(j)*Tc(j)*Tc(j) &
+                      + sb(10)*bm_s_tbl(s)*bm_s_tbl(s)*bm_s_tbl(s)
+                   second = (M2/a_)**(1./b_)
+                else
+                   second = M2
+                endif
 
-               loga_ = sa(1) + sa(2)*Tc(j) + sa(3)*cse(1) &
-                  + sa(4)*Tc(j)*cse(1) + sa(5)*Tc(j)*Tc(j) &
-                  + sa(6)*cse(1)*cse(1) + sa(7)*Tc(j)*Tc(j)*cse(1) &
-                  + sa(8)*Tc(j)*cse(1)*cse(1) + sa(9)*Tc(j)*Tc(j)*Tc(j) &
-                  + sa(10)*cse(1)*cse(1)*cse(1)
-               a_ = 10.0**loga_
-               b_ = sb(1)+sb(2)*Tc(j)+sb(3)*cse(1) + sb(4)*Tc(j)*cse(1) &
-                  + sb(5)*Tc(j)*Tc(j) + sb(6)*cse(1)*cse(1) &
-                  + sb(7)*Tc(j)*Tc(j)*cse(1) + sb(8)*Tc(j)*cse(1)*cse(1) &
-                  + sb(9)*Tc(j)*Tc(j)*Tc(j)+sb(10)*cse(1)*cse(1)*cse(1)
-               M3 = a_ * second**b_
+                loga_ = sa(1) + sa(2)*Tc(j) + sa(3)*(bm_s_tbl(s)+1.) &
+                   + sa(4)*Tc(j)*(bm_s_tbl(s)+1.)+ sa(5)*Tc(j)*Tc(j) &
+                   + sa(6)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.) &
+                   + sa(7)*Tc(j)*Tc(j)*(bm_s_tbl(s)+1.) &
+                   + sa(8)*Tc(j)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.) &
+                   + sa(9)*Tc(j)*Tc(j)*Tc(j) &
+                   + sa(10)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.)
+                a_ = 10.0**loga_
+                b_ = sb(1)+sb(2)*Tc(j)+sb(3)*(bm_s_tbl(s)+1.) &
+                   + sb(4)*Tc(j)*(bm_s_tbl(s)+1.) &
+                   + sb(5)*Tc(j)*Tc(j) &
+                   + sb(6)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.) &
+                   + sb(7)*Tc(j)*Tc(j)*(bm_s_tbl(s)+1.) &
+                   + sb(8)*Tc(j)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.) &
+                   + sb(9)*Tc(j)*Tc(j)*Tc(j) &
+                   + sb(10)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.)*(bm_s_tbl(s)+1.)
+                M3 = a_ * second**b_
 
-               oM3 = 1./M3
-               Mrat = M2*(M2*oM3)*(M2*oM3)*(M2*oM3)
-               M0   = (M2*oM3)**mu_s
-               slam1 = M2 * oM3 * Lam0
-               slam2 = M2 * oM3 * Lam1
+                oM3 = 1./M3
+                Mrat = M2*(M2*oM3)*(M2*oM3)*(M2*oM3)
+                M0   = (M2*oM3)**mu_s
+                slam1 = M2 * oM3 * Lam0
+                slam2 = M2 * oM3 * Lam1
 
-               do n = 1, nbs
-                  N_s(n) = Mrat*(Kap0*DEXP(-slam1*Ds(n)) &
-                      + Kap1*M0*Ds(n)**mu_s * DEXP(-slam2*Ds(n)))*dts(n)
-               enddo
+                do n = 1, nbs
+                   N_s(n) = Mrat*(Kap0*DEXP(-slam1*Ds(n)) &
+                       + Kap1*M0*Ds(n)**mu_s * DEXP(-slam2*Ds(n)))*dts(n)
+                enddo
 
-               t1 = 0.0d0
-               t2 = 0.0d0
-               t3 = 0.0d0
-               t4 = 0.0d0
-               z1 = 0.0d0
-               z2 = 0.0d0
-               z3 = 0.0d0
-               z4 = 0.0d0
-               y1 = 0.0d0
-               y2 = 0.0d0
-               y3 = 0.0d0
-               y4 = 0.0d0
-               do n2 = 1, nbr
-                  massr = am_r * Dr(n2)**bm_r
-                  do n = 1, nbs
-                     masss = am_s * Ds(n)**bm_s
+                t1 = 0.0d0
+                t2 = 0.0d0
+                t3 = 0.0d0
+                t4 = 0.0d0
+                z1 = 0.0d0
+                z2 = 0.0d0
+                z3 = 0.0d0
+                z4 = 0.0d0
+                y1 = 0.0d0
+                y2 = 0.0d0
+                y3 = 0.0d0
+                y4 = 0.0d0
+                do n2 = 1, nbr
+                   massr = am_r * Dr(n2)**bm_r
+                   do n = 1, nbs
+                      masss = am_s_tbl(s) * Ds(n)**bm_s_tbl(s)
       
-                     dvs = 0.5d0*((vr(n2) - vs(n)) + DABS(vr(n2)-vs(n)))
-                     dvr = 0.5d0*((vs(n) - vr(n2)) + DABS(vs(n)-vr(n2)))
+                      dvs = 0.5d0*((vr(n2) - vs(n,s)) &
+                          + DABS(vr(n2)-vs(n,s)))
+                      dvr = 0.5d0*((vs(n,s) - vr(n2)) &
+                          + DABS(vs(n,s)-vr(n2)))
 
-                     if (massr .gt. 1.5*masss) then
-                     t1 = t1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs*masss * N_s(n)* N_r(n2)
-                     z1 = z1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs*massr * N_s(n)* N_r(n2)
-                     y1 = y1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs       * N_s(n)* N_r(n2)
-                     else
-                     t3 = t3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs*masss * N_s(n)* N_r(n2)
-                     z3 = z3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs*massr * N_s(n)* N_r(n2)
-                     y3 = y3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvs       * N_s(n)* N_r(n2)
-                     endif
+                      if (massr .gt. 1.5*masss) then
+                      t1 = t1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs*masss * N_s(n)* N_r(n2)
+                      z1 = z1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs*massr * N_s(n)* N_r(n2)
+                      y1 = y1+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs       * N_s(n)* N_r(n2)
+                      else
+                      t3 = t3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs*masss * N_s(n)* N_r(n2)
+                      z3 = z3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs*massr * N_s(n)* N_r(n2)
+                      y3 = y3+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvs       * N_s(n)* N_r(n2)
+                      endif
 
-                     if (massr .gt. 1.5*masss) then
-                     t2 = t2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr*massr * N_s(n)* N_r(n2)
-                     y2 = y2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr       * N_s(n)* N_r(n2)
-                     z2 = z2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr*masss * N_s(n)* N_r(n2)
-                     else
-                     t4 = t4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr*massr * N_s(n)* N_r(n2)
-                     y4 = y4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr       * N_s(n)* N_r(n2)
-                     z4 = z4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2))*(Ds(n)+Dr(n2)) &
-                         *dvr*masss * N_s(n)* N_r(n2)
-                     endif
+                      if (massr .gt. 1.5*masss) then
+                      t2 = t2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvr*massr * N_s(n)* N_r(n2)
+                      y2 = y2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) & 
+                          *(Ds(n)+Dr(n2))*dvr       * N_s(n)* N_r(n2)
+                      z2 = z2+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) & 
+                          *(Ds(n)+Dr(n2))*dvr*masss * N_s(n)* N_r(n2)
+                      else
+                      t4 = t4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) & 
+                          *(Ds(n)+Dr(n2))*dvr*massr * N_s(n)* N_r(n2)
+                      y4 = y4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvr       * N_s(n)* N_r(n2)
+                      z4 = z4+ PI*.25*Ef_rs*(Ds(n)+Dr(n2)) &
+                          *(Ds(n)+Dr(n2))*dvr*masss * N_s(n)* N_r(n2)
+                      endif
 
-                  enddo
-               enddo
-               tcs_racs1(i,j,k,m) = t1
-               tmr_racs1(i,j,k,m) = DMIN1(z1, r_r(m)*1.0d0)
-               tcs_racs2(i,j,k,m) = t3
-               tmr_racs2(i,j,k,m) = z3
-               tcr_sacr1(i,j,k,m) = t2
-               tms_sacr1(i,j,k,m) = z2
-               tcr_sacr2(i,j,k,m) = t4
-               tms_sacr2(i,j,k,m) = z4
-               tnr_racs1(i,j,k,m) = y1
-               tnr_racs2(i,j,k,m) = y3
-               tnr_sacr1(i,j,k,m) = y2
-               tnr_sacr2(i,j,k,m) = y4
-            enddo
-         enddo
-        enddo
+                   enddo !end n/nbs loop
+                enddo !end n2/nbr loop
+                tcs_racs1(i,j,k,m,s) = t1
+                tmr_racs1(i,j,k,m,s) = DMIN1(z1, r_r(m)*1.0d0)
+                tcs_racs2(i,j,k,m,s) = t3
+                tmr_racs2(i,j,k,m,s) = z3
+                tcr_sacr1(i,j,k,m,s) = t2
+                tms_sacr1(i,j,k,m,s) = z2
+                tcr_sacr2(i,j,k,m,s) = t4
+                tms_sacr2(i,j,k,m,s) = z4
+                tnr_racs1(i,j,k,m,s) = y1
+                tnr_racs2(i,j,k,m,s) = y3
+                tnr_sacr1(i,j,k,m,s) = y2
+                tnr_sacr2(i,j,k,m,s) = y4
+             enddo !end i/ntb_s loop
+          enddo !end j/ntb_t loop
+         !enddo !end km/km_s/km_e loop
+         enddo !end k/ntb_r1 loop, remove once km loop is restored
+         enddo !end m/ntb_r loop, remove once km loop is restored
+        enddo !end s/ntb_spp loop
 
 !..Note wrf_dm_gatherv expects zero-based km_s, km_e (J. Michalakes, 2009Oct30).
 
-#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
-        CALL wrf_dm_gatherv(tcs_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tmr_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tcs_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tmr_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tcr_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tms_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tcr_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tms_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tnr_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tnr_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tnr_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-        CALL wrf_dm_gatherv(tnr_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
-#endif
+!DM disabled -- need to restore
+!thought adding "ntb_spp*ntb_s*ntb_t" here might fix indexing problems but did not
+!tried many fixes including reordering of lookup table arrays but
+!was not able to get a working solution with distributed memory (DM)
+
+!#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
+!        CALL wrf_dm_gatherv(tcs_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tmr_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tcs_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tmr_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tcr_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tms_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tcr_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tms_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tnr_racs1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tnr_racs2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tnr_sacr1, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!        CALL wrf_dm_gatherv(tnr_sacr2, ntb_s*ntb_t, km_s, km_e, R8SIZE)
+!#endif
 
         IF ( write_thompson_tables .AND. wrf_dm_on_monitor() ) THEN
-          CALL wrf_message("Writing qr_acr_qsV2.dat in Thompson MP init")
-          OPEN(63,file="qr_acr_qsV2.dat",form="unformatted",err=9234)
+          CALL wrf_message("Writing qr_acr_qsV2_spp.dat in Thompson MP init")
+          OPEN(63,file="qr_acr_qsV2_spp.dat",form="unformatted",err=9234)
           WRITE(63,err=9234)tcs_racs1
           WRITE(63,err=9234)tmr_racs1
           WRITE(63,err=9234)tcs_racs2
@@ -4209,7 +4373,7 @@
           CLOSE(63)
           RETURN    ! ----- RETURN
  9234     CONTINUE
-          CALL wrf_error_fatal("Error writing qr_acr_qsV2.dat")
+          CALL wrf_error_fatal("Error writing qr_acr_qsV2_spp.dat")
         ENDIF
       ENDIF
 
@@ -4550,33 +4714,36 @@
 !..Local variables
       DOUBLE PRECISION:: Ds_m, vts, vtc, stokes, reynolds, Ef_sw
       DOUBLE PRECISION:: p, yc0, F, G, H, z, K0
-      INTEGER:: i, j
+      INTEGER:: i, j, k
 
-      do j = 1, nbc
-      vtc = 1.19D4 * (1.0D4*Dc(j)*Dc(j)*0.25D0)
-      do i = 1, nbs
-         vts = av_s*Ds(i)**bv_s * DEXP(-fv_s*Ds(i)) - vtc
-         Ds_m = (am_s*Ds(i)**bm_s / am_r)**obmr
-         p = Dc(j)/Ds_m
-         if (p.gt.0.25 .or. Ds(i).lt.D0s .or. Dc(j).lt.6.E-6 &
-               .or. vts.lt.1.E-3) then
-          t_Efsw(i,j) = 0.0
-         else
-          stokes = Dc(j)*Dc(j)*vts*rho_w/(9.*1.718E-5*Ds_m)
-          reynolds = 9.*stokes/(p*p*rho_w)
+      do k = 1, ntb_spp !loop over all snow M-D, V-D values
+       do j = 1, nbc
+         vtc = 1.19D4 * (1.0D4*Dc(j)*Dc(j)*0.25D0)
+         do i = 1, nbs
+            vts = av_s_tbl(k)*Ds(i)**bv_s_tbl(k) &
+                * DEXP(-fv_s*Ds(i)) - vtc
+            Ds_m = (am_s_tbl(k)*Ds(i)**bm_s_tbl(k) / am_r)**obmr
+            p = Dc(j)/Ds_m
+            if (p.gt.0.25 .or. Ds(i).lt.D0s .or. Dc(j).lt.6.E-6 &
+                  .or. vts.lt.1.E-3) then
+             t_Efsw(i,j,k) = 0.0
+            else
+             stokes = Dc(j)*Dc(j)*vts*rho_w/(9.*1.718E-5*Ds_m)
+             reynolds = 9.*stokes/(p*p*rho_w)
 
-          F = DLOG(reynolds)
-          G = -0.1007D0 - 0.358D0*F + 0.0261D0*F*F
-          K0 = DEXP(G)
-          z = DLOG(stokes/(K0+1.D-15))
-          H = 0.1465D0 + 1.302D0*z - 0.607D0*z*z + 0.293D0*z*z*z
-          yc0 = 2.0D0/PI * ATAN(H)
-          Ef_sw = (yc0+p)*(yc0+p) / ((1.+p)*(1.+p))
+             F = DLOG(reynolds)
+             G = -0.1007D0 - 0.358D0*F + 0.0261D0*F*F
+             K0 = DEXP(G)
+             z = DLOG(stokes/(K0+1.D-15))
+             H = 0.1465D0 + 1.302D0*z - 0.607D0*z*z + 0.293D0*z*z*z
+             yc0 = 2.0D0/PI * ATAN(H)
+             Ef_sw = (yc0+p)*(yc0+p) / ((1.+p)*(1.+p))
 
-          t_Efsw(i,j) = MAX(0.0, MIN(SNGL(Ef_sw), 0.95))
-         endif
+             t_Efsw(i,j,k) = MAX(0.0, MIN(SNGL(Ef_sw), 0.95))
+            endif
 
-      enddo
+         enddo
+       enddo
       enddo
 
       end subroutine table_Efsw
@@ -5556,7 +5723,7 @@
            slam2 = M0 * Lam1
            do n = 1, nrbins
               x = am_s * xxDs(n)**bm_s
-              call rayleigh_soak_wetgraupel (x, DBLE(ocms), DBLE(obms), &
+              call rayleigh_soak_wetgraupel (x, DBLE(ocms_spp), DBLE(obms_spp), &
      &              fmelt_s, melt_outside_s, m_w_0, m_i_0, lamda_radar, &
      &              CBACK, mixingrulestring_s, matrixstring_s,          &
      &              inclusionstring_s, hoststring_s,                    &
