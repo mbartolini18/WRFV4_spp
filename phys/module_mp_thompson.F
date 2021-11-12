@@ -403,14 +403,13 @@
       REAL:: t1_qs_sd, t2_qs_sd, t1_qg_sd, t2_qg_sd
       REAL:: t1_qs_me, t2_qs_me, t1_qg_me, t2_qg_me
  
-!..redefine values of snow M(d) and V(d) coefficients and
+!..Redefine values of snow M(d) and V(d) coefficients and
 !dependent variables if SPP-MP is active, using new
 !variable names with suffix "_spp" everywhere
 !instead of modifying original PARAMETER vars
 !if spp_mp = 0, values remain consistent with original vars
-      REAL, PRIVATE:: oams_spp, obms_spp, ocms_spp
-!am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
-!bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp, &
+      REAL, PRIVATE:: obms_spp, ocms_spp
+
 !+---+
 !+---+-----------------------------------------------------------------+
 !..END DECLARATIONS
@@ -1683,14 +1682,14 @@
       INTEGER:: nu_c
 
 
-      !..redefine values of snow M(d) and V(d) coefficients and
+      !..Redefine values of snow M(d) and V(d) coefficients and
       !dependent variables if SPP-MP is active, using new
       !variable names with suffix "_spp" everywhere
       !instead of modifying original PARAMETER vars
       !if spp_mp = 0, values remain consistent with original vars
       REAL:: am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
-             bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp
-             !oams_spp, obms_spp, ocms_spp
+             bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp, &
+             oams_spp
 
 
       mm = RSHIFT(ABS(rand_perturb_on),4) 
@@ -1753,8 +1752,6 @@
         t2_qs_me_spp = t2_qs_me
 
       endif
-      !TODO: change all bm_s, bv_s, obms, and ocms references to "_spp"
-      !below this point, for consistency with am_s_spp naming convention
 
 !+---+
 
