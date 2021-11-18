@@ -1229,9 +1229,9 @@
             m = RSHIFT(ABS(rand_perturb_on),2)
             if (MOD(m,2) .ne. 0) rand3 = 0.25*(rand_pert(i,1,j)+ABS(min_rand))
             m = RSHIFT(ABS(rand_perturb_on),3)
-            if (MOD(m,2) .ne. 0) rand4 = 0.2*rand_pert(i,1,j)
+            if (MOD(m,2) .ne. 0) rand4 = 0.15*rand_pert(i,1,j)
             m = RSHIFT(ABS(rand_perturb_on),4)
-            if (MOD(m,2) .ne. 0) rand5 = rand_pert(i,1,j)
+            if (MOD(m,2) .ne. 0) rand5 = 1.4*rand_pert(i,1,j)
          endif
 !+---+-----------------------------------------------------------------+
 
@@ -1695,11 +1695,11 @@
       mm = RSHIFT(ABS(rand_perturb_on),4) 
       !if rand5 being perturbed, modify coeff values
       if (MOD(mm,2) .ne. 0) then
-        !av_s pert scaled so it is 30x larger than am_s
+        !av_s pert scaled so it is 27x larger than am_s pert from rand5
         am_s_spp = 10.**(LOG10(am_s)+rand5) !log transform
-        am_s_spp = MAX(am_s_spp, 0.001) !make sure perts > 0
-        av_s_spp = av_s+(30.*rand5)
-        av_s_spp = MAX(av_s_spp, 0.001)
+        am_s_spp = MAX(am_s_spp, 0.0001) !make sure coeffs > 0
+        av_s_spp = av_s+(27.*rand5)
+        av_s_spp = MAX(av_s_spp, 0.0001)
         oams_spp = 1./(am_s_spp)
         t1_qs_qc_spp = PI*.25*av_s_spp !snow coll. cloud water
         t1_qs_qi_spp = PI*.25*av_s_spp !snow coll. cloud ice
@@ -4713,7 +4713,7 @@
       DOUBLE PRECISION:: p, yc0, F, G, H, z, K0
       INTEGER:: i, j, k
 
-      do k = 1, ntb_spp !loop over all snow M-D, V-D values
+      do k = 1, ntb_spp !loop over all snow M(d), V(d) values
        do j = 1, nbc
          vtc = 1.19D4 * (1.0D4*Dc(j)*Dc(j)*0.25D0)
          do i = 1, nbs
