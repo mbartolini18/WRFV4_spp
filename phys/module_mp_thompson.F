@@ -2758,7 +2758,7 @@
            if (ssati(k).lt. 0.) then
             prs_sde(k) = C_cube*t1_subl*diffu(k)*ssati(k)*rvs &
                          * (t1_qs_sd*smo1(k) &
-                          + t2_qs_sd*rhof2(k)*vsc2(k)*smof(k))
+                          + t2_qs_sd_spp*rhof2(k)*vsc2(k)*smof(k))
             prs_sde(k) = MAX(DBLE(-rs(k)*odts), prs_sde(k))
            endif
           endif
