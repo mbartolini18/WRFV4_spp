@@ -408,7 +408,11 @@
 !variable names with suffix "_spp" everywhere
 !instead of modifying original PARAMETER vars
 !if spp_mp = 0, values remain consistent with original vars
-      REAL, PRIVATE:: obms_spp, ocms_spp
+      !REAL, PRIVATE:: obms_spp, ocms_spp
+      REAL, PRIVATE:: am_s_spp, bm_s_spp, av_s_spp, bv_s_spp, &
+             t1_qs_qc_spp, t1_qs_qi_spp, &
+             t2_qs_sd_spp, t2_qs_me_spp, &
+             oams_spp, obms_spp, ocms_spp
 
 !+---+
 !+---+-----------------------------------------------------------------+
@@ -1687,9 +1691,9 @@
       !variable names with suffix "_spp" everywhere
       !instead of modifying original PARAMETER vars
       !if spp_mp = 0, values remain consistent with original vars
-      REAL:: am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
-             bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp, &
-             oams_spp
+      !REAL:: am_s_spp, av_s_spp, t1_qs_qc_spp, t1_qs_qi_spp, &
+      !       bm_s_spp, bv_s_spp, t2_qs_sd_spp, t2_qs_me_spp, &
+      !       oams_spp
 
 
       mm = RSHIFT(ABS(rand_perturb_on),4) 
@@ -5595,24 +5599,24 @@
       do k = kts, ke_diag ! kte
          if (.not. L_qs(k)) CYCLE
          tc0 = MIN(-0.1, temp(k)-273.15)
-         smob(k) = rs(k)*oams
+         smob(k) = rs(k)*oams_spp
 
 !..All other moments based on reference, 2nd moment.  If bm_s.ne.2,
 !.. then we must compute actual 2nd moment and use as reference.
-         if (bm_s.gt.(2.0-1.e-3) .and. bm_s.lt.(2.0+1.e-3)) then
+         if (bm_s_spp.gt.(2.0-1.e-3) .and. bm_s_spp.lt.(2.0+1.e-3)) then
             smo2(k) = smob(k)
          else
-            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s &
-     &         + sa(4)*tc0*bm_s + sa(5)*tc0*tc0 &
-     &         + sa(6)*bm_s*bm_s + sa(7)*tc0*tc0*bm_s &
-     &         + sa(8)*tc0*bm_s*bm_s + sa(9)*tc0*tc0*tc0 &
-     &         + sa(10)*bm_s*bm_s*bm_s
+            loga_ = sa(1) + sa(2)*tc0 + sa(3)*bm_s_spp &
+     &         + sa(4)*tc0*bm_s_spp + sa(5)*tc0*tc0 &
+     &         + sa(6)*bm_s_spp*bm_s_spp + sa(7)*tc0*tc0*bm_s_spp &
+     &         + sa(8)*tc0*bm_s_spp*bm_s_spp + sa(9)*tc0*tc0*tc0 &
+     &         + sa(10)*bm_s_spp*bm_s_spp*bm_s_spp
             a_ = 10.0**loga_
-            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s &
-     &         + sb(4)*tc0*bm_s + sb(5)*tc0*tc0 &
-     &         + sb(6)*bm_s*bm_s + sb(7)*tc0*tc0*bm_s &
-     &         + sb(8)*tc0*bm_s*bm_s + sb(9)*tc0*tc0*tc0 &
-     &         + sb(10)*bm_s*bm_s*bm_s
+            b_ = sb(1) + sb(2)*tc0 + sb(3)*bm_s_spp &
+     &         + sb(4)*tc0*bm_s_spp + sb(5)*tc0*tc0 &
+     &         + sb(6)*bm_s_spp*bm_s_spp + sb(7)*tc0*tc0*bm_s_spp &
+     &         + sb(8)*tc0*bm_s_spp*bm_s_spp + sb(9)*tc0*tc0*tc0 &
+     &         + sb(10)*bm_s_spp*bm_s_spp*bm_s_spp
             smo2(k) = (smob(k)/a_)**(1./b_)
          endif
 
@@ -5692,7 +5696,7 @@
          ze_graupel(k) = 1.e-22
          if (L_qr(k)) ze_rain(k) = N0_r(k)*crg(4)*ilamr(k)**cre(4)
          if (L_qs(k)) ze_snow(k) = (0.176/0.93) * (6.0/PI)*(6.0/PI)     &
-     &                           * (am_s/900.0)*(am_s/900.0)*smoz(k)
+     &                           * (am_s_spp/900.0)*(am_s_spp/900.0)*smoz(k)
          if (L_qg(k)) ze_graupel(k) = (0.176/0.93) * (6.0/PI)*(6.0/PI)  &
      &                              * (am_g/900.0)*(am_g/900.0)         &
      &                              * N0_g(k)*cgg(4)*ilamg(k)**cge(4)
@@ -5719,7 +5723,7 @@
            slam1 = M0 * Lam0
            slam2 = M0 * Lam1
            do n = 1, nrbins
-              x = am_s * xxDs(n)**bm_s
+              x = am_s_spp * xxDs(n)**bm_s_spp
               call rayleigh_soak_wetgraupel (x, DBLE(ocms_spp), DBLE(obms_spp), &
      &              fmelt_s, melt_outside_s, m_w_0, m_i_0, lamda_radar, &
      &              CBACK, mixingrulestring_s, matrixstring_s,          &
